@@ -38,8 +38,13 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/users").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/users/**").permitAll()
                 
-                // Swagger y actuator (opcional)
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // Swagger UI y OpenAPI endpoints
+                .requestMatchers("/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/v3/api-docs.yaml", "/v3/api-docs").permitAll()
+                .requestMatchers("/swagger-resources/**", "/webjars/**").permitAll()
+                .requestMatchers("/swagger-ui/index.html").permitAll()
+                
+                // Actuator endpoints (opcional)
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 
                 // Todos los demás endpoints requieren autenticación
