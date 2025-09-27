@@ -22,11 +22,20 @@ public class JwtUtil {
     private final long refreshTokenExpiration;
 
     public JwtUtil(
-            @Value("${app.jwt.secret:mySecretKey1234567890123456789012345678901234567890}") String secret,
+            @Value("${app.jwt.secret:}") String secret,
             @Value("${app.jwt.access-token-expiration:3600}") long accessTokenExpiration, // 1 hora
             @Value("${app.jwt.refresh-token-expiration:86400}") long refreshTokenExpiration // 24 horas
     ) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        // Si no se proporciona una clave secreta, generar una clave segura para HS512
+        if (secret == null || secret.trim().isEmpty()) {
+            this.key = Jwts.SIG.HS512.key().build();
+        } else {
+            // Verificar que la clave tenga al menos 64 bytes (512 bits) para HS512
+            if (secret.getBytes().length < 64) {
+                throw new IllegalArgumentException("JWT secret key must be at least 64 bytes (512 bits) for HS512 algorithm");
+            }
+            this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        }
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
     }
