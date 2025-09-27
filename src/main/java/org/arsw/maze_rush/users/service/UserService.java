@@ -2,7 +2,6 @@ package org.arsw.maze_rush.users.service;
 
 import java.util.List;
 
-import org.arsw.maze_rush.users.dto.LoginRequestDTO;
 import org.arsw.maze_rush.users.dto.UserRequestDTO;
 import org.arsw.maze_rush.users.dto.UserResponseDTO;
 
@@ -13,6 +12,5 @@ public interface  UserService {
     UserResponseDTO createUser(UserRequestDTO user);
     UserResponseDTO updateUser(String username, UserRequestDTO user);
     void deleteUser(String username);
-    UserResponseDTO login(LoginRequestDTO request);
     
 }

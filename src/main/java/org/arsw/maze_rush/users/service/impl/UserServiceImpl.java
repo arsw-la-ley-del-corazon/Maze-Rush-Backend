@@ -5,8 +5,6 @@ import java.util.stream.Collectors;
 
 import org.arsw.maze_rush.common.exceptions.ConflictException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
-import org.arsw.maze_rush.common.exceptions.UnauthorizedException;
-import org.arsw.maze_rush.users.dto.LoginRequestDTO;
 import org.arsw.maze_rush.users.dto.UserRequestDTO;
 import org.arsw.maze_rush.users.dto.UserResponseDTO;
 import org.arsw.maze_rush.users.entities.UserEntity;
@@ -112,27 +110,6 @@ public class UserServiceImpl implements UserService {
         UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
             .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + username));
         userRepository.delete(entity);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public UserResponseDTO login(LoginRequestDTO request) {
-        UserEntity entity = null;
-        if (request.getEmail() != null && !request.getEmail().isBlank()) {
-            entity = userRepository.findByEmailIgnoreCase(request.getEmail().trim().toLowerCase())
-                .orElseThrow(() -> new UnauthorizedException("Credenciales inválidas"));
-        } else if (request.getUsername() != null && !request.getUsername().isBlank()) {
-            entity = userRepository.findByUsernameIgnoreCase(request.getUsername().trim())
-                .orElseThrow(() -> new UnauthorizedException("Credenciales inválidas"));
-        } else {
-            throw new UnauthorizedException("Debe proporcionar email o username");
-        }
-
-        if (!passwordEncoder.matches(request.getPassword(), entity.getPassword())) {
-            throw new UnauthorizedException("Credenciales inválidas");
-        }
-
-        return toResponse(entity);
     }
 
     private UserResponseDTO toResponse(UserEntity entity) {

@@ -1,4 +1,4 @@
-package org.arsw.maze_rush.users.dto;
+package org.arsw.maze_rush.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -12,6 +12,6 @@ public class LoginRequestDTO {
     @Email
     private String email;
 
-    @NotBlank
+    @NotBlank(message = "La contraseña es obligatoria")
     private String password;
 }

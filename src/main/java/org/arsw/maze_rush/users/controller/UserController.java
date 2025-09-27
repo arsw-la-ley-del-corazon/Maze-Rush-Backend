@@ -1,8 +1,8 @@
 package org.arsw.maze_rush.users.controller;
 
+import java.security.Principal;
 import java.util.List;
 
-import org.arsw.maze_rush.users.dto.LoginRequestDTO;
 import org.arsw.maze_rush.users.dto.UserRequestDTO;
 import org.arsw.maze_rush.users.dto.UserResponseDTO;
 import org.arsw.maze_rush.users.service.UserService;
@@ -24,17 +24,21 @@ public class UserController {
         this.userService = userService;
     }
 
-    // Registro
+    // Registro (ahora manejado por AuthController, pero se mantiene para compatibilidad)
     @PostMapping
     public ResponseEntity<UserResponseDTO> register(@Valid @RequestBody UserRequestDTO request) {
+        // Nota: Este endpoint podría ser deprecated en favor de /api/v1/auth/register
         UserResponseDTO created = userService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    // Login (por email o username)
-    @PostMapping("/login")
-    public ResponseEntity<UserResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
-        return ResponseEntity.ok(userService.login(request));
+    // Obtener perfil del usuario autenticado
+    @GetMapping("/me")
+    public ResponseEntity<UserResponseDTO> getCurrentUser(Principal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(userService.findUserByUsername(principal.getName()));
     }
 
     // Listado
@@ -55,10 +59,20 @@ public class UserController {
         return ResponseEntity.ok(userService.findUserByEmail(email));
     }
 
-    // Actualización parcial por username
+    // Actualización parcial del usuario autenticado
+    @PatchMapping("/me")
+    public ResponseEntity<UserResponseDTO> updateCurrentUser(Principal principal,
+                                                             @Valid @RequestBody UserRequestDTO request) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(userService.updateUser(principal.getName(), request));
+    }
+
+    // Actualización parcial por username (admin only - para futuro)
     @PatchMapping("/{username}")
-    public ResponseEntity<UserResponseDTO> update(@PathVariable String username,
-                                                  @Valid @RequestBody UserRequestDTO request) {
+    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable String username,
+                                                      @Valid @RequestBody UserRequestDTO request) {
         return ResponseEntity.ok(userService.updateUser(username, request));
     }
 
