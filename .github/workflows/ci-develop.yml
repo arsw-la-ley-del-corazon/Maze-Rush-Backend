@@ -16,8 +16,8 @@ jobs:
         with:
           java-version: '21'
           distribution: 'microsoft'
-      - name: Build with Maven
-        run: mvn clean install
+      - name: Build with Maven (skip tests)
+        run: mvn clean compile -DskipTests
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
@@ -51,9 +51,13 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Run tests (verify phase)
-        run: mvn verify
+      - name: Compile test classes
+        run: mvn test-compile
+      - name: Run tests
+        run: mvn test
         env:
           DATABASE_URL: jdbc:postgresql://localhost:5432/maze_rush
           DATABASE_USERNAME: admin
           DATABASE_PASSWORD: admin123
+      - name: Package application
+        run: mvn package -DskipTests
