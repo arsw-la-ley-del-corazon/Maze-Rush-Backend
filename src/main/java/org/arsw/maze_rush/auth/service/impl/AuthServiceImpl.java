@@ -142,6 +142,8 @@ public class AuthServiceImpl implements AuthService {
         userInfo.setId(user.getId().toString());
         userInfo.setUsername(user.getUsername());
         userInfo.setEmail(user.getEmail());
+        userInfo.setScore(user.getScore());
+        userInfo.setLevel(user.getLevel());
         response.setUser(userInfo);
         
         return response;

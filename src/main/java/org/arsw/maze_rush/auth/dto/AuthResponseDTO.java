@@ -59,5 +59,11 @@ public class AuthResponseDTO {
 
         @Schema(description = "Correo electrónico", example = "john.doe@example.com", format = "email")
         private String email;
+
+        @Schema(description = "Puntuación del usuario", example = "1250")
+        private Integer score = 0;
+
+        @Schema(description = "Nivel del usuario", example = "5")
+        private Integer level = 1;
     }
 }
