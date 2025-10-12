@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: maze_rush_postgres
+    environment:
+      POSTGRES_DB: maze_rush
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - maze_rush_network
+
+networks:
+  maze_rush_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
