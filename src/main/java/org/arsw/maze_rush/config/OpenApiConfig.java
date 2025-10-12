@@ -39,7 +39,7 @@ public class OpenApiConfig {
                                 .url("http://localhost:" + serverPort)
                                 .description("Servidor de desarrollo local"),
                         new Server()
-                                .url("https://maze-rush-api.herokuapp.com")
+                                .url("https://themaze-f5dkfwa3a0cff3av.canadacentral-01.azurewebsites.net")
                                 .description("Servidor de producción")))
                 .components(new Components()
                         .addSecuritySchemes("Bearer Authentication", 
