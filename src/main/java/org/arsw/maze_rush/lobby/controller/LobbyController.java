@@ -1,6 +1,7 @@
 package org.arsw.maze_rush.lobby.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -10,18 +11,33 @@ import org.arsw.maze_rush.lobby.dto.LobbyRequestDTO;
 import org.arsw.maze_rush.lobby.dto.LobbyResponseDTO;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.service.LobbyService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
+/**
+ * Controlador REST para la gestión de lobbies de juego.
+ * 
+ * <p>Expone endpoints para crear, listar, consultar y eliminar lobbies
+ * dentro del sistema Maze Rush. Este controlador actúa como la capa de
+ * entrada (API pública) del módulo de lobbies.</p>
+ * 
+ * <h3>Características principales:</h3>
+ * <ul>
+ *   <li>Creación de lobbies con validaciones automáticas vía {@link Valid}.</li>
+ *   <li>Operaciones CRUD expuestas mediante endpoints RESTful.</li>
+ *   <li>Documentación completa mediante OpenAPI/Swagger.</li>
+ * </ul>
+ * 
+ */
 @RestController
 @RequestMapping("/api/v1/lobby")
 @Tag(
-    name = "Gestión de Lobbies",
-    description = "Endpoints para crear, listar, buscar y eliminar salas de juego (lobbies)"
+    name = "Lobbies",
+    description = "Endpoints para la creación, consulta y gestión de salas (lobbies) de juego."
 )
 public class LobbyController {
 
@@ -31,22 +47,32 @@ public class LobbyController {
         this.lobbyService = lobbyService;
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // POST: Crear lobby
+    // ────────────────────────────────────────────────────────────────
     @Operation(
         summary = "Crear un nuevo lobby",
-        description = "Crea una nuevo lobby con los parámetros enviados.",
+        description = "Permite crear una nueva sala de juego (lobby) especificando el tamaño del laberinto, visibilidad y número máximo de jugadores.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Lobby creado exitosamente",
-                content = @Content(schema = @Schema(implementation = LobbyResponseDTO.class))),
-            @ApiResponse(responseCode = "400", description = "Datos inválidos o parámetros incorrectos", content = @Content)
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = LobbyResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos o parámetros fuera de rango"),
+            @ApiResponse(responseCode = "401", description = "No autorizado (token inválido o ausente)"),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
     @PostMapping("/create")
-    public ResponseEntity<LobbyResponseDTO> createLobby(@Valid @RequestBody LobbyRequestDTO request) {
+    public ResponseEntity<LobbyResponseDTO> createLobby(
+            @Valid @RequestBody
+            @Parameter(description = "Datos necesarios para crear un lobby", required = true)
+            LobbyRequestDTO request) {
+
         LobbyEntity lobby = lobbyService.createLobby(
-                request.getMazeSize(),
-                request.getMaxPlayers(),
-                request.getVisibility(),
-                request.getCreatorUsername()
+            request.getMazeSize(),
+            request.getMaxPlayers(),
+            request.isPublic(),
+            request.getStatus(),
+            request.getCreatorUsername()
         );
 
         LobbyResponseDTO response = new LobbyResponseDTO();
@@ -54,21 +80,26 @@ public class LobbyController {
         response.setCode(lobby.getCode());
         response.setMazeSize(lobby.getMazeSize());
         response.setMaxPlayers(lobby.getMaxPlayers());
-        response.setVisibility(lobby.getVisibility());
+        response.setPublic(lobby.isPublic());
+        response.setStatus(lobby.getStatus());
         response.setCreatorUsername(lobby.getCreatorUsername());
 
         return ResponseEntity.ok(response);
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // Obtener todos los lobbies
+    // ────────────────────────────────────────────────────────────────
     @Operation(
         summary = "Listar todos los lobbies",
-        description = "Devuelve una lista con todas los lobbies registrados en el sistema.",
+        description = "Obtiene la lista completa de lobbies creados en el sistema.",
         responses = {
-            @ApiResponse(responseCode = "200", description = "Listado obtenido exitosamente",
-                content = @Content(schema = @Schema(implementation = LobbyResponseDTO.class))),
+            @ApiResponse(responseCode = "200", description = "Lista de lobbies obtenida correctamente",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = LobbyResponseDTO.class))),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
-    @GetMapping("")
+    @GetMapping("/all")
     public ResponseEntity<List<LobbyResponseDTO>> getAllLobbies() {
         List<LobbyResponseDTO> response = lobbyService.getAllLobbies().stream().map(lobby -> {
             LobbyResponseDTO dto = new LobbyResponseDTO();
@@ -76,49 +107,90 @@ public class LobbyController {
             dto.setCode(lobby.getCode());
             dto.setMazeSize(lobby.getMazeSize());
             dto.setMaxPlayers(lobby.getMaxPlayers());
-            dto.setVisibility(lobby.getVisibility());
+            dto.setPublic(lobby.isPublic());
+            dto.setStatus(lobby.getStatus());
             dto.setCreatorUsername(lobby.getCreatorUsername());
+            dto.setCreatedAt(lobby.getCreatedAt().toString());
             return dto;
-        }).collect(Collectors.toList());
+        }).toList();
 
         return ResponseEntity.ok(response);
     }
 
+
+    // ────────────────────────────────────────────────────────────────
+    // Buscar lobby por código
+    // ────────────────────────────────────────────────────────────────
     @Operation(
-        summary = "Buscar un lobby por código",
-        description = "Obtiene la información de un lobby específico usando su código.",
+        summary = "Obtener un lobby por su código",
+        description = "Busca y retorna un lobby específico a partir de su código único de 6 caracteres.",
         responses = {
-            @ApiResponse(responseCode = "200", description = "Lobby encontrado",
-                content = @Content(schema = @Schema(implementation = LobbyResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Lobby no encontrado", content = @Content)
+            @ApiResponse(responseCode = "200", description = "Lobby encontrado correctamente",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = LobbyResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "No se encontró un lobby con el código especificado"),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
     @GetMapping("/{code}")
-    public ResponseEntity<LobbyResponseDTO> getLobbyByCode(@PathVariable String code) {
-        LobbyEntity lobby = lobbyService.getLobbyByCode(code);
-
-        LobbyResponseDTO response = new LobbyResponseDTO();
-        response.setId(lobby.getId().toString());
-        response.setCode(lobby.getCode());
-        response.setMazeSize(lobby.getMazeSize());
-        response.setMaxPlayers(lobby.getMaxPlayers());
-        response.setVisibility(lobby.getVisibility());
-        response.setCreatorUsername(lobby.getCreatorUsername());
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<LobbyEntity> getLobbyByCode(
+            @Parameter(description = "Código único de 6 caracteres del lobby", example = "AB12CD")
+            @PathVariable String code) {
+        return ResponseEntity.ok(lobbyService.getLobbyByCode(code));
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // Eliminar lobby por ID
+    // ────────────────────────────────────────────────────────────────
     @Operation(
         summary = "Eliminar un lobby",
-        description = "Elimina un lobby del sistema mediante su ID (solo el creador debería tener permiso).",
+        description = "Permite eliminar un lobby existente utilizando su identificador único (UUID).",
         responses = {
-            @ApiResponse(responseCode = "200", description = "Lobby eliminado exitosamente"),
-            @ApiResponse(responseCode = "404", description = "Lobby no encontrado", content = @Content)
+            @ApiResponse(responseCode = "204", description = "Lobby eliminado correctamente"),
+            @ApiResponse(responseCode = "404", description = "No se encontró el lobby especificado"),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteLobby(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteLobby(
+            @Parameter(description = "Identificador único del lobby (UUID)", example = "8f7d1f08-2b6d-4c6a-b4b8-7e4e82b8f5c3")
+            @PathVariable UUID id) {
+
         lobbyService.deleteLobby(id);
-        return ResponseEntity.ok("Lobby eliminado correctamente");
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
+
+    // ───────────────────────────────────────────────
+    // POST: Agregar jugador a un lobby
+    // ───────────────────────────────────────────────
+    @Operation(
+        summary = "Agregar jugador a un lobby",
+        description = "Permite asociar un usuario existente a un lobby mediante sus identificadores UUID."
+    )
+    @PostMapping("/{lobbyId}/add-player/{userId}")
+    public ResponseEntity<String> addPlayerToLobby(
+            @PathVariable UUID lobbyId,
+            @PathVariable UUID userId) {
+        lobbyService.addPlayerToLobby(lobbyId, userId);
+        return ResponseEntity.ok("Jugador agregado correctamente al lobby");
+    }
+
+    // ───────────────────────────────────────────────
+    // DELETE: Remover jugador de un lobby
+    // ───────────────────────────────────────────────
+    @Operation(
+        summary = "Remover jugador de un lobby",
+        description = "Elimina la relación entre un usuario y un lobby existente."
+    )
+    @DeleteMapping("/{lobbyId}/remove-player/{userId}")
+    public ResponseEntity<String> removePlayerFromLobby(
+            @PathVariable UUID lobbyId,
+            @PathVariable UUID userId) {
+        lobbyService.removePlayerFromLobby(lobbyId, userId);
+        return ResponseEntity.ok("Jugador removido correctamente del lobby");
+    }
+
+
+
+
+
 }

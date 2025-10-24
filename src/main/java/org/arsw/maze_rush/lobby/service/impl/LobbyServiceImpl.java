@@ -1,51 +1,39 @@
 package org.arsw.maze_rush.lobby.service.impl;
 
+import org.arsw.maze_rush.common.exceptions.NotFoundException;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.repository.LobbyRepository;
 import org.arsw.maze_rush.lobby.service.LobbyService;
+import org.arsw.maze_rush.users.entities.UserEntity;
+import org.arsw.maze_rush.users.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 
 /**
  * Implementación del servicio {@link LobbyService} que gestiona la lógica de negocio
- * relacionada con los lobbies o salas de juego.
- *
- * <p>Incluye operaciones de creación, consulta y eliminación de lobbies,
- * así como la generación de códigos únicos y validación de parámetros.</p>
- *
- * <h3>Características principales:</h3>
- * <ul>
- *   <li>Generación automática de códigos alfanuméricos únicos de 6 caracteres.</li>
- *   <li>Validación del número máximo de jugadores permitido (entre 2 y 4).</li>
- *   <li>Operaciones CRUD con validaciones de existencia.</li>
- * </ul>
+ * de los lobbies o salas de juego.
  */
 @Service
+@Transactional
 public class LobbyServiceImpl implements LobbyService {
+
+    private final UserRepository userRepository;
 
     private final LobbyRepository lobbyRepository;
 
-    /**
-     * Constructor principal del servicio.
-     *
-     * @param lobbyRepository repositorio JPA para el manejo de datos de lobbies
-     */
-    public LobbyServiceImpl(LobbyRepository lobbyRepository) {
+    public LobbyServiceImpl(LobbyRepository lobbyRepository, UserRepository userRepository) {
+
         this.lobbyRepository = lobbyRepository;
+        this.userRepository = userRepository;
     }
 
-    /**
-     * Genera un código aleatorio de 6 caracteres alfanuméricos
-     * para identificar de forma única cada lobby.
-     *
-     * @return código único generado
-     */
+    /** Genera un código aleatorio de 6 caracteres alfanuméricos. */
     private String generateCode() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        final String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         StringBuilder code = new StringBuilder();
         Random random = new Random();
         for (int i = 0; i < 6; i++) {
@@ -54,30 +42,26 @@ public class LobbyServiceImpl implements LobbyService {
         return code.toString();
     }
 
-    /**
-     * Crea un nuevo lobby con los parámetros especificados, validando
-     * el rango de jugadores y generando un código único.
-     *
-     * @param mazeSize tamaño del laberinto (Pequeño, Mediano o Grande)
-     * @param maxPlayers número máximo de jugadores (2 a 4)
-     * @param visibility visibilidad del lobby (Pública o Privada)
-     * @param creatorUsername nombre del usuario que crea el lobby
-     * @return la entidad {@link LobbyEntity} creada y guardada
-     * @throws IllegalArgumentException si el número de jugadores es inválido
-     */
+    /** Genera un código que no exista ya en BD. */
+    private String generateUniqueCode() {
+        String code;
+        do {
+            code = generateCode();
+        } while (lobbyRepository.findByCode(code).isPresent());
+        return code;
+    }
+
     @Override
-    public LobbyEntity createLobby(String mazeSize, int maxPlayers, String visibility, String creatorUsername) {
+    public LobbyEntity createLobby(String mazeSize, int maxPlayers, boolean isPublic, String status, String creatorUsername) {
         if (maxPlayers < 2 || maxPlayers > 4) {
             throw new IllegalArgumentException("El número de jugadores debe estar entre 2 y 4");
         }
-
-        String code = generateCode();
-
         LobbyEntity lobby = new LobbyEntity();
-        lobby.setCode(code);
+        lobby.setCode(generateUniqueCode());
         lobby.setMazeSize(mazeSize);
         lobby.setMaxPlayers(maxPlayers);
-        lobby.setVisibility(visibility);
+        lobby.setPublic(isPublic);
+        lobby.setStatus((status == null || status.isBlank()) ? "EN_ESPERA" : status);
         lobby.setCreatorUsername(creatorUsername);
 
         return lobbyRepository.save(lobby);
@@ -89,6 +73,7 @@ public class LobbyServiceImpl implements LobbyService {
      * @return lista de entidades {@link LobbyEntity}
      */
     @Override
+    @Transactional(readOnly = true)
     public List<LobbyEntity> getAllLobbies() {
         return lobbyRepository.findAll();
     }
@@ -101,12 +86,10 @@ public class LobbyServiceImpl implements LobbyService {
      * @throws IllegalArgumentException si no se encuentra el lobby
      */
     @Override
+    @Transactional(readOnly = true)
     public LobbyEntity getLobbyByCode(String code) {
-        Optional<LobbyEntity> lobbyOpt = lobbyRepository.findByCode(code);
-        if (lobbyOpt.isEmpty()) {
-            throw new IllegalArgumentException("No se encontró el lobby con el código: " + code);
-        }
-        return lobbyOpt.get();
+        return lobbyRepository.findByCode(code)
+                .orElseThrow(() -> new NotFoundException("No se encontró el lobby con el código: " + code));
     }
 
     /**
@@ -118,8 +101,45 @@ public class LobbyServiceImpl implements LobbyService {
     @Override
     public void deleteLobby(UUID id) {
         if (!lobbyRepository.existsById(id)) {
-            throw new IllegalArgumentException("No se encontró el lobby con el ID: " + id);
+            throw new NotFoundException("No se encontró el lobby con el ID: " + id);
         }
         lobbyRepository.deleteById(id);
     }
+
+    @Override
+    public void addPlayerToLobby(UUID lobbyId, UUID userId) {
+        LobbyEntity lobby = lobbyRepository.findById(lobbyId)
+                .orElseThrow(() -> new IllegalArgumentException("Lobby no encontrado con ID: " + lobbyId));
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado con ID: " + userId));
+
+        if (lobby.getPlayers().size() >= lobby.getMaxPlayers()) {
+            throw new IllegalStateException("El lobby ya alcanzó el número máximo de jugadores");
+        }
+
+        if (lobby.getPlayers().contains(user)) {
+            throw new IllegalStateException("El jugador ya está en este lobby");
+        }
+
+
+        lobby.addPlayer(user);
+        lobbyRepository.save(lobby);
+    }
+
+    @Override
+    public void removePlayerFromLobby(UUID lobbyId, UUID userId) {
+        LobbyEntity lobby = lobbyRepository.findById(lobbyId)
+                .orElseThrow(() -> new IllegalArgumentException("Lobby no encontrado con ID: " + lobbyId));
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado con ID: " + userId));
+
+        lobby.removePlayer(user);
+        lobbyRepository.save(lobby);
+    }
+
+
+
+
 }
