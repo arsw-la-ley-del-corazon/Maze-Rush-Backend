@@ -18,21 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Controlador REST para la gestión de lobbies de juego.
- * 
- * <p>Expone endpoints para crear, listar, consultar y eliminar lobbies
- * dentro del sistema Maze Rush. Este controlador actúa como la capa de
- * entrada (API pública) del módulo de lobbies.</p>
- * 
- * <h3>Características principales:</h3>
- * <ul>
- *   <li>Creación de lobbies con validaciones automáticas vía {@link Valid}.</li>
- *   <li>Operaciones CRUD expuestas mediante endpoints RESTful.</li>
- *   <li>Documentación completa mediante OpenAPI/Swagger.</li>
- * </ul>
- * 
- */
+
 @RestController
 @RequestMapping("/api/v1/lobby")
 @Tag(

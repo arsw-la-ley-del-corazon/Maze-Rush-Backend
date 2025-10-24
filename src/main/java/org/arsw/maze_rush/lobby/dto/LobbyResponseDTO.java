@@ -3,14 +3,7 @@ package org.arsw.maze_rush.lobby.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-/**
- * Objeto de transferencia de datos (DTO) que representa la
- * respuesta enviada al cliente al consultar o crear un lobby.
- *
- * <p>Incluye información general del lobby como su identificador,
- * visibilidad, estado actual y datos del creador.</p>
- *
- */
+
 @Data
 @Schema(
     name = "LobbyResponse",

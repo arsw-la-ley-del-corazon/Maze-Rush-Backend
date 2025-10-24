@@ -8,27 +8,30 @@ import org.arsw.maze_rush.users.entities.UserEntity;
 import org.arsw.maze_rush.users.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.redis.core.RedisTemplate;
+import java.util.concurrent.TimeUnit;
+
 
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
-/**
- * Implementación del servicio {@link LobbyService} que gestiona la lógica de negocio
- * de los lobbies o salas de juego.
- */
+
 @Service
 @Transactional
 public class LobbyServiceImpl implements LobbyService {
 
     private final UserRepository userRepository;
-
     private final LobbyRepository lobbyRepository;
+    private final RedisTemplate<String, Object> redisTemplate;
 
-    public LobbyServiceImpl(LobbyRepository lobbyRepository, UserRepository userRepository) {
+    public LobbyServiceImpl(LobbyRepository lobbyRepository,
+                            UserRepository userRepository,
+                            RedisTemplate<String, Object> redisTemplate) {
 
         this.lobbyRepository = lobbyRepository;
         this.userRepository = userRepository;
+        this.redisTemplate = redisTemplate;
     }
 
     /** Genera un código aleatorio de 6 caracteres alfanuméricos. */
@@ -42,7 +45,7 @@ public class LobbyServiceImpl implements LobbyService {
         return code.toString();
     }
 
-    /** Genera un código que no exista ya en BD. */
+    /** Genera un código que no exista en DB. */
     private String generateUniqueCode() {
         String code;
         do {
@@ -63,43 +66,36 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setPublic(isPublic);
         lobby.setStatus((status == null || status.isBlank()) ? "EN_ESPERA" : status);
         lobby.setCreatorUsername(creatorUsername);
+        LobbyEntity savedLobby = lobbyRepository.save(lobby);
+        redisTemplate.opsForValue().set("lobby:" + savedLobby.getCode(), savedLobby, 1, TimeUnit.HOURS);
 
-        return lobbyRepository.save(lobby);
+        return savedLobby;
     }
 
-    /**
-     * Obtiene todos los lobbies registrados en el sistema.
-     *
-     * @return lista de entidades {@link LobbyEntity}
-     */
+    
     @Override
     @Transactional(readOnly = true)
     public List<LobbyEntity> getAllLobbies() {
         return lobbyRepository.findAll();
     }
 
-    /**
-     * Busca un lobby por su código único.
-     *
-     * @param code código de 6 caracteres del lobby
-     * @return entidad {@link LobbyEntity} correspondiente al código
-     * @throws IllegalArgumentException si no se encuentra el lobby
-     */
     @Override
     @Transactional(readOnly = true)
     public LobbyEntity getLobbyByCode(String code) {
-        return lobbyRepository.findByCode(code)
+        LobbyEntity cachedLobby = (LobbyEntity) redisTemplate.opsForValue().get("lobby:" + code);
+        if (cachedLobby != null) {
+            return cachedLobby;
+        }
+        LobbyEntity lobby = lobbyRepository.findByCode(code)
                 .orElseThrow(() -> new NotFoundException("No se encontró el lobby con el código: " + code));
+
+        redisTemplate.opsForValue().set("lobby:" + code, lobby, 1, TimeUnit.HOURS);
+        return lobby;
     }
 
-    /**
-     * Elimina un lobby existente mediante su identificador UUID.
-     *
-     * @param id identificador único del lobby
-     * @throws IllegalArgumentException si no se encuentra el lobby
-     */
     @Override
     public void deleteLobby(UUID id) {
+        
         if (!lobbyRepository.existsById(id)) {
             throw new NotFoundException("No se encontró el lobby con el ID: " + id);
         }

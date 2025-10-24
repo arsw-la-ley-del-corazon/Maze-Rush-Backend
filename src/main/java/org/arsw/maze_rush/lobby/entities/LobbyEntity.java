@@ -38,37 +38,29 @@ import lombok.ToString;
 @ToString
 public class LobbyEntity {
 
-    /** Identificador único del lobby */
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(nullable = false, unique = true, columnDefinition = "uuid")
     private UUID id;
 
-    /** Código único de 6 caracteres que identifica el lobby. */
     @Column(nullable = false, unique = true, length = 6)
     private String code;
 
-    /** Nombre de usuario del creador del lobby. */
     @Column(nullable = false, length = 50)
     private String creatorUsername;
 
-    /** Tamaño del laberinto seleccionado (Pequeño, Mediano, Grande). */
     @Column(nullable = false, length = 20)
     private String mazeSize;
 
-    /** Número máximo de jugadores permitidos (entre 2 y 4). */
     @Column(nullable = false)
     private int maxPlayers;
 
-    /** Define si el lobby es público (true) o privado (false). */
     @Column(nullable = false)
     private boolean isPublic;
 
-    /** Estado actual del lobby. */
     @Column(nullable = false, length = 20)
     private String status;
 
-    /** Fecha y hora de creación del lobby. */
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
     
