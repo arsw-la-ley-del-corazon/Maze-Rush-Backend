@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.arsw.maze_rush.lobby.dto.LobbyRequestDTO;
 import org.arsw.maze_rush.lobby.dto.LobbyResponseDTO;
+import org.arsw.maze_rush.lobby.dto.LobbyWithPlayersResponseDTO;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.service.LobbyService;
 import org.springframework.http.HttpStatus;
@@ -82,8 +83,8 @@ public class LobbyController {
 
     
     @Operation(
-        summary = "Obtener un lobby por su código",
-        description = "Busca y retorna un lobby específico a partir de su código único de 6 caracteres.",
+        summary = "Obtener detalles completos del lobby",
+        description = "Retorna toda la información del lobby, incluyendo la lista de jugadores conectados.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Lobby encontrado correctamente",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = LobbyResponseDTO.class))),
@@ -92,13 +93,30 @@ public class LobbyController {
         }
     )
     @GetMapping("/{code}")
-    public ResponseEntity<LobbyResponseDTO> getLobbyByCode(
+    public ResponseEntity<LobbyWithPlayersResponseDTO> getLobbyByCode(
             @Parameter(description = "Código único de 6 caracteres del lobby", example = "AB12CD")
             @PathVariable String code) {
 
         LobbyEntity lobby = lobbyService.getLobbyByCode(code);
-        return ResponseEntity.ok(mapToDTO(lobby));
+
+        LobbyWithPlayersResponseDTO response = new LobbyWithPlayersResponseDTO();
+        response.setId(lobby.getId().toString());
+        response.setCode(lobby.getCode());
+        response.setMazeSize(lobby.getMazeSize());
+        response.setMaxPlayers(lobby.getMaxPlayers());
+        response.setPublic(lobby.isPublic());
+        response.setStatus(lobby.getStatus());
+        response.setCreatorUsername(lobby.getCreatorUsername());
+        response.setCreatedAt(lobby.getCreatedAt().toString());
+        response.setPlayers(
+            lobby.getPlayers().stream()
+                    .map(player -> player.getUsername())
+                    .toList()
+        );
+
+        return ResponseEntity.ok(response);
     }
+
 
 
     @Operation(
@@ -158,4 +176,8 @@ public class LobbyController {
         dto.setCreatedAt(lobby.getCreatedAt().toString());
         return dto;
     }
+
+
+
+
 }

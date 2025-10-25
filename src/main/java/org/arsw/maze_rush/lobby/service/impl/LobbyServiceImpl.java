@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -67,14 +68,15 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setStatus((status == null || status.isBlank()) ? "EN_ESPERA" : status);
         lobby.setCreatorUsername(creatorUsername);
 
-        //  Agregar al creador automáticamente como jugador
+        // 🔹 Buscar y agregar al creador
         UserEntity creator = userRepository.findByUsernameIgnoreCase(creatorUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario creador no encontrado: " + creatorUsername));
-        lobby.addPlayer(creator);
+
+        lobby.addPlayer(creator);     
+        creator.getLobbies().add(lobby);
 
         LobbyEntity savedLobby = lobbyRepository.save(lobby);
 
-        //  Guardar versión liviana del lobby en Redis (no la entidad JPA)
         LobbyCacheDTO cache = new LobbyCacheDTO();
         cache.setId(savedLobby.getId());
         cache.setCode(savedLobby.getCode());
@@ -83,11 +85,16 @@ public class LobbyServiceImpl implements LobbyService {
         cache.setPublic(savedLobby.isPublic());
         cache.setStatus(savedLobby.getStatus());
         cache.setCreatorUsername(savedLobby.getCreatorUsername());
+        cache.setPlayers(savedLobby.getPlayers()
+                .stream()
+                .map(UserEntity::getUsername)
+                .toList());
 
         redisTemplate.opsForValue().set("lobby:" + savedLobby.getCode(), cache, 1, TimeUnit.HOURS);
 
         return savedLobby;
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -101,16 +108,22 @@ public class LobbyServiceImpl implements LobbyService {
         //  Primero buscar en Redis (DTO)
         LobbyCacheDTO cachedLobby = (LobbyCacheDTO) redisTemplate.opsForValue().get("lobby:" + code);
         if (cachedLobby != null) {
-            LobbyEntity lobby = new LobbyEntity();
-            lobby.setId(cachedLobby.getId());
-            lobby.setCode(cachedLobby.getCode());
-            lobby.setMazeSize(cachedLobby.getMazeSize());
-            lobby.setMaxPlayers(cachedLobby.getMaxPlayers());
-            lobby.setPublic(cachedLobby.isPublic());
-            lobby.setStatus(cachedLobby.getStatus());
-            lobby.setCreatorUsername(cachedLobby.getCreatorUsername());
-            return lobby;
-        }
+        LobbyEntity lobby = new LobbyEntity();
+        lobby.setId(cachedLobby.getId());
+        lobby.setCode(cachedLobby.getCode());
+        lobby.setMazeSize(cachedLobby.getMazeSize());
+        lobby.setMaxPlayers(cachedLobby.getMaxPlayers());
+        lobby.setPublic(cachedLobby.isPublic());
+        lobby.setStatus(cachedLobby.getStatus());
+        lobby.setCreatorUsername(cachedLobby.getCreatorUsername());
+        lobby.setPlayers(
+            cachedLobby.getPlayers().stream()
+                .map(username -> userRepository.findByUsernameIgnoreCase(username).orElse(null))
+                .filter(u -> u != null)
+                .collect(Collectors.toSet())
+        );
+        return lobby;
+    }
 
         // Si no está en Redis, buscar en base de datos
         LobbyEntity lobby = lobbyRepository.findByCode(code)
@@ -143,9 +156,27 @@ public class LobbyServiceImpl implements LobbyService {
             throw new IllegalStateException("El jugador ya está en este lobby");
         }
 
+     
         lobby.addPlayer(user);
-        lobbyRepository.save(lobby);
+        LobbyEntity updatedLobby = lobbyRepository.save(lobby);
+
+        
+        LobbyCacheDTO cache = new LobbyCacheDTO();
+        cache.setId(updatedLobby.getId());
+        cache.setCode(updatedLobby.getCode());
+        cache.setMazeSize(updatedLobby.getMazeSize());
+        cache.setMaxPlayers(updatedLobby.getMaxPlayers());
+        cache.setPublic(updatedLobby.isPublic());
+        cache.setStatus(updatedLobby.getStatus());
+        cache.setCreatorUsername(updatedLobby.getCreatorUsername());
+        cache.setPlayers(updatedLobby.getPlayers()
+                .stream()
+                .map(UserEntity::getUsername)
+                .toList());
+
+        redisTemplate.opsForValue().set("lobby:" + updatedLobby.getCode(), cache, 1, TimeUnit.HOURS);
     }
+
 
     @Override
     public void removePlayerFromLobby(UUID lobbyId, UUID userId) {

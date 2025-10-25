@@ -51,8 +51,8 @@ public class LobbyEntity {
     @Column(nullable = false, length = 20)
     private String status;
 
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
     
     @ManyToMany
     @JoinTable(
