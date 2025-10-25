@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -31,14 +33,22 @@ public class UserEntity {
     @Column(name = "email", nullable = false, unique = true, length = 254)
     private String email;
 
-    @Column(name = "password", nullable = false, length = 60)
-    private String password; // almacena el hash (BCrypt ~60 chars)
+    @Column(name = "password", length = 60)
+    private String password; // almacena el hash (BCrypt ~60 chars) - nullable para OAuth2
 
     @Column(name = "score", nullable = false)
     private int score = 0;
 
     @Column(name = "level", nullable = false)
     private int level = 1;
+
+    // Campos para OAuth2
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 20)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "provider_id", length = 100)
+    private String providerId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
