@@ -1,6 +1,9 @@
 package org.arsw.maze_rush.lobby.entities;
 
-import java.time.Instant;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.UUID;
 import java.util.Set;
@@ -16,26 +19,13 @@ import lombok.ToString;
 
 
 
-/**
- * Entidad JPA que representa un lobby (sala de juego) dentro del sistema Maze Rush.
- *
- * <p>Cada lobby contiene información sobre su tamaño de laberinto,
- * número máximo de jugadores, visibilidad, estado actual y el usuario creador.</p>
- *
- * <h3>Características:</h3>
- * <ul>
- *   <li>Identificador único tipo {@link UUID} generado automáticamente.</li>
- *   <li>Código alfanumérico único de 6 caracteres para acceder al lobby.</li>
- *   <li>Campos de visibilidad y estado gestionados automáticamente al crear la entidad.</li>
- * </ul>
- *
- */
 @Entity
 @Table(name = "lobbies")
 @Getter
 @Setter
 @NoArgsConstructor
 @ToString
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class LobbyEntity {
 
     @Id
@@ -62,7 +52,7 @@ public class LobbyEntity {
     private String status;
 
     @Column(nullable = false, updatable = false)
-    private Instant createdAt;
+    private LocalDateTime createdAt;
     
     @ManyToMany
     @JoinTable(
@@ -75,7 +65,7 @@ public class LobbyEntity {
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = Instant.now();
+        this.createdAt = LocalDateTime.now();
         if (this.status == null || this.status.isBlank()) {
             this.status = "EN_ESPERA";
         }

@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-
 @RestController
 @RequestMapping("/api/v1/lobby")
 @Tag(
@@ -33,9 +32,7 @@ public class LobbyController {
         this.lobbyService = lobbyService;
     }
 
-    // ────────────────────────────────────────────────────────────────
-    // POST: Crear lobby
-    // ────────────────────────────────────────────────────────────────
+   
     @Operation(
         summary = "Crear un nuevo lobby",
         description = "Permite crear una nueva sala de juego (lobby) especificando el tamaño del laberinto, visibilidad y número máximo de jugadores.",
@@ -61,21 +58,10 @@ public class LobbyController {
             request.getCreatorUsername()
         );
 
-        LobbyResponseDTO response = new LobbyResponseDTO();
-        response.setId(lobby.getId().toString());
-        response.setCode(lobby.getCode());
-        response.setMazeSize(lobby.getMazeSize());
-        response.setMaxPlayers(lobby.getMaxPlayers());
-        response.setPublic(lobby.isPublic());
-        response.setStatus(lobby.getStatus());
-        response.setCreatorUsername(lobby.getCreatorUsername());
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(mapToDTO(lobby));
     }
 
-    // ────────────────────────────────────────────────────────────────
-    // Obtener todos los lobbies
-    // ────────────────────────────────────────────────────────────────
+
     @Operation(
         summary = "Listar todos los lobbies",
         description = "Obtiene la lista completa de lobbies creados en el sistema.",
@@ -87,26 +73,14 @@ public class LobbyController {
     )
     @GetMapping("/all")
     public ResponseEntity<List<LobbyResponseDTO>> getAllLobbies() {
-        List<LobbyResponseDTO> response = lobbyService.getAllLobbies().stream().map(lobby -> {
-            LobbyResponseDTO dto = new LobbyResponseDTO();
-            dto.setId(lobby.getId().toString());
-            dto.setCode(lobby.getCode());
-            dto.setMazeSize(lobby.getMazeSize());
-            dto.setMaxPlayers(lobby.getMaxPlayers());
-            dto.setPublic(lobby.isPublic());
-            dto.setStatus(lobby.getStatus());
-            dto.setCreatorUsername(lobby.getCreatorUsername());
-            dto.setCreatedAt(lobby.getCreatedAt().toString());
-            return dto;
-        }).toList();
-
+        List<LobbyResponseDTO> response = lobbyService.getAllLobbies()
+                .stream()
+                .map(this::mapToDTO)
+                .toList();
         return ResponseEntity.ok(response);
     }
 
-
-    // ────────────────────────────────────────────────────────────────
-    // Buscar lobby por código
-    // ────────────────────────────────────────────────────────────────
+    
     @Operation(
         summary = "Obtener un lobby por su código",
         description = "Busca y retorna un lobby específico a partir de su código único de 6 caracteres.",
@@ -118,15 +92,15 @@ public class LobbyController {
         }
     )
     @GetMapping("/{code}")
-    public ResponseEntity<LobbyEntity> getLobbyByCode(
+    public ResponseEntity<LobbyResponseDTO> getLobbyByCode(
             @Parameter(description = "Código único de 6 caracteres del lobby", example = "AB12CD")
             @PathVariable String code) {
-        return ResponseEntity.ok(lobbyService.getLobbyByCode(code));
+
+        LobbyEntity lobby = lobbyService.getLobbyByCode(code);
+        return ResponseEntity.ok(mapToDTO(lobby));
     }
 
-    // ────────────────────────────────────────────────────────────────
-    // Eliminar lobby por ID
-    // ────────────────────────────────────────────────────────────────
+
     @Operation(
         summary = "Eliminar un lobby",
         description = "Permite eliminar un lobby existente utilizando su identificador único (UUID).",
@@ -145,9 +119,7 @@ public class LobbyController {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    // ───────────────────────────────────────────────
-    // POST: Agregar jugador a un lobby
-    // ───────────────────────────────────────────────
+   
     @Operation(
         summary = "Agregar jugador a un lobby",
         description = "Permite asociar un usuario existente a un lobby mediante sus identificadores UUID."
@@ -160,9 +132,7 @@ public class LobbyController {
         return ResponseEntity.ok("Jugador agregado correctamente al lobby");
     }
 
-    // ───────────────────────────────────────────────
-    // DELETE: Remover jugador de un lobby
-    // ───────────────────────────────────────────────
+    
     @Operation(
         summary = "Remover jugador de un lobby",
         description = "Elimina la relación entre un usuario y un lobby existente."
@@ -175,8 +145,17 @@ public class LobbyController {
         return ResponseEntity.ok("Jugador removido correctamente del lobby");
     }
 
-
-
-
-
+    
+    private LobbyResponseDTO mapToDTO(LobbyEntity lobby) {
+        LobbyResponseDTO dto = new LobbyResponseDTO();
+        dto.setId(lobby.getId().toString());
+        dto.setCode(lobby.getCode());
+        dto.setMazeSize(lobby.getMazeSize());
+        dto.setMaxPlayers(lobby.getMaxPlayers());
+        dto.setPublic(lobby.isPublic());
+        dto.setStatus(lobby.getStatus());
+        dto.setCreatorUsername(lobby.getCreatorUsername());
+        dto.setCreatedAt(lobby.getCreatedAt().toString());
+        return dto;
+    }
 }

@@ -8,4 +8,5 @@ public class MazeRushApplication {
     public static void main(String[] args) {
         SpringApplication.run(MazeRushApplication.class, args);
     }
+    
 }

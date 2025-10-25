@@ -1,6 +1,7 @@
 package org.arsw.maze_rush.lobby.service.impl;
 
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
+import org.arsw.maze_rush.lobby.dto.LobbyCacheDTO;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.repository.LobbyRepository;
 import org.arsw.maze_rush.lobby.service.LobbyService;
@@ -9,13 +10,11 @@ import org.arsw.maze_rush.users.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.redis.core.RedisTemplate;
+
 import java.util.concurrent.TimeUnit;
-
-
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
-
 
 @Service
 @Transactional
@@ -59,6 +58,7 @@ public class LobbyServiceImpl implements LobbyService {
         if (maxPlayers < 2 || maxPlayers > 4) {
             throw new IllegalArgumentException("El número de jugadores debe estar entre 2 y 4");
         }
+
         LobbyEntity lobby = new LobbyEntity();
         lobby.setCode(generateUniqueCode());
         lobby.setMazeSize(mazeSize);
@@ -66,13 +66,29 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setPublic(isPublic);
         lobby.setStatus((status == null || status.isBlank()) ? "EN_ESPERA" : status);
         lobby.setCreatorUsername(creatorUsername);
+
+        //  Agregar al creador automáticamente como jugador
+        UserEntity creator = userRepository.findByUsernameIgnoreCase(creatorUsername)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario creador no encontrado: " + creatorUsername));
+        lobby.addPlayer(creator);
+
         LobbyEntity savedLobby = lobbyRepository.save(lobby);
-        redisTemplate.opsForValue().set("lobby:" + savedLobby.getCode(), savedLobby, 1, TimeUnit.HOURS);
+
+        //  Guardar versión liviana del lobby en Redis (no la entidad JPA)
+        LobbyCacheDTO cache = new LobbyCacheDTO();
+        cache.setId(savedLobby.getId());
+        cache.setCode(savedLobby.getCode());
+        cache.setMazeSize(savedLobby.getMazeSize());
+        cache.setMaxPlayers(savedLobby.getMaxPlayers());
+        cache.setPublic(savedLobby.isPublic());
+        cache.setStatus(savedLobby.getStatus());
+        cache.setCreatorUsername(savedLobby.getCreatorUsername());
+
+        redisTemplate.opsForValue().set("lobby:" + savedLobby.getCode(), cache, 1, TimeUnit.HOURS);
 
         return savedLobby;
     }
 
-    
     @Override
     @Transactional(readOnly = true)
     public List<LobbyEntity> getAllLobbies() {
@@ -82,20 +98,29 @@ public class LobbyServiceImpl implements LobbyService {
     @Override
     @Transactional(readOnly = true)
     public LobbyEntity getLobbyByCode(String code) {
-        LobbyEntity cachedLobby = (LobbyEntity) redisTemplate.opsForValue().get("lobby:" + code);
+        //  Primero buscar en Redis (DTO)
+        LobbyCacheDTO cachedLobby = (LobbyCacheDTO) redisTemplate.opsForValue().get("lobby:" + code);
         if (cachedLobby != null) {
-            return cachedLobby;
+            LobbyEntity lobby = new LobbyEntity();
+            lobby.setId(cachedLobby.getId());
+            lobby.setCode(cachedLobby.getCode());
+            lobby.setMazeSize(cachedLobby.getMazeSize());
+            lobby.setMaxPlayers(cachedLobby.getMaxPlayers());
+            lobby.setPublic(cachedLobby.isPublic());
+            lobby.setStatus(cachedLobby.getStatus());
+            lobby.setCreatorUsername(cachedLobby.getCreatorUsername());
+            return lobby;
         }
+
+        // Si no está en Redis, buscar en base de datos
         LobbyEntity lobby = lobbyRepository.findByCode(code)
                 .orElseThrow(() -> new NotFoundException("No se encontró el lobby con el código: " + code));
 
-        redisTemplate.opsForValue().set("lobby:" + code, lobby, 1, TimeUnit.HOURS);
         return lobby;
     }
 
     @Override
     public void deleteLobby(UUID id) {
-        
         if (!lobbyRepository.existsById(id)) {
             throw new NotFoundException("No se encontró el lobby con el ID: " + id);
         }
@@ -118,7 +143,6 @@ public class LobbyServiceImpl implements LobbyService {
             throw new IllegalStateException("El jugador ya está en este lobby");
         }
 
-
         lobby.addPlayer(user);
         lobbyRepository.save(lobby);
     }
@@ -134,8 +158,4 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.removePlayer(user);
         lobbyRepository.save(lobby);
     }
-
-
-
-
 }
