@@ -117,6 +117,18 @@
             <version>2.8.13</version>
         </dependency>
         
+        <!-- AOP para logging aspectos -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+        
+        <!-- Email support (para simulación) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        
     </dependencies>
 
     <build>

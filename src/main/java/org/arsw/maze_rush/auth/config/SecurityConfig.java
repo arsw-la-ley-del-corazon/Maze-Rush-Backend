@@ -45,6 +45,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/google").permitAll()
                 
+                // Endpoints públicos de recuperación de contraseña
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/password/forgot").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/password/reset").permitAll()
+                
                 // OAuth2 endpoints
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 
