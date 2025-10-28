@@ -12,8 +12,11 @@ import org.arsw.maze_rush.lobby.dto.LobbyResponseDTO;
 import org.arsw.maze_rush.lobby.dto.LobbyWithPlayersResponseDTO;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.service.LobbyService;
+import org.arsw.maze_rush.users.entities.UserEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -51,12 +54,15 @@ public class LobbyController {
             @Parameter(description = "Datos necesarios para crear un lobby", required = true)
             LobbyRequestDTO request) {
 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String creatorUsername = authentication.getName();
+
         LobbyEntity lobby = lobbyService.createLobby(
             request.getMazeSize(),
             request.getMaxPlayers(),
             request.isPublic(),
             request.getStatus(),
-            request.getCreatorUsername()
+            creatorUsername
         );
 
         return ResponseEntity.ok(mapToDTO(lobby));
@@ -117,40 +123,6 @@ public class LobbyController {
         return ResponseEntity.ok(response);
     }
 
-
-
-    @Operation(
-        summary = "Eliminar un lobby",
-        description = "Permite eliminar un lobby existente utilizando su identificador único (UUID).",
-        responses = {
-            @ApiResponse(responseCode = "204", description = "Lobby eliminado correctamente"),
-            @ApiResponse(responseCode = "404", description = "No se encontró el lobby especificado"),
-            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-        }
-    )
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteLobby(
-            @Parameter(description = "Identificador único del lobby (UUID)", example = "8f7d1f08-2b6d-4c6a-b4b8-7e4e82b8f5c3")
-            @PathVariable UUID id) {
-
-        lobbyService.deleteLobby(id);
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
-    }
-
-   
-    @Operation(
-        summary = "Agregar jugador a un lobby",
-        description = "Permite asociar un usuario existente a un lobby mediante sus identificadores UUID."
-    )
-    @PostMapping("/{lobbyId}/add-player/{userId}")
-    public ResponseEntity<String> addPlayerToLobby(
-            @PathVariable UUID lobbyId,
-            @PathVariable UUID userId) {
-        lobbyService.addPlayerToLobby(lobbyId, userId);
-        return ResponseEntity.ok("Jugador agregado correctamente al lobby");
-    }
-
-    
     @Operation(
         summary = "Remover jugador de un lobby",
         description = "Elimina la relación entre un usuario y un lobby existente."
@@ -162,6 +134,56 @@ public class LobbyController {
         lobbyService.removePlayerFromLobby(lobbyId, userId);
         return ResponseEntity.ok("Jugador removido correctamente del lobby");
     }
+
+
+    @Operation(
+        summary = "Unirse a un lobby usando su código",
+        description = "Permite a un usuario unirse a un lobby existente usando el código del lobby."
+    )
+    @PostMapping("/join/{code}")
+    public ResponseEntity<LobbyWithPlayersResponseDTO> joinLobby(
+            @PathVariable String code) {
+        
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        LobbyEntity lobby = lobbyService.joinLobbyByCode(code,username);
+
+        LobbyWithPlayersResponseDTO response = new LobbyWithPlayersResponseDTO();
+        response.setId(lobby.getId().toString());
+        response.setCode(lobby.getCode());
+        response.setMazeSize(lobby.getMazeSize());
+        response.setMaxPlayers(lobby.getMaxPlayers());
+        response.setPublic(lobby.isPublic());
+        response.setStatus(lobby.getStatus());
+        response.setCreatorUsername(lobby.getCreatorUsername());
+        response.setCreatedAt(lobby.getCreatedAt().toString());
+        response.setPlayers(
+            lobby.getPlayers().stream()
+                    .map(UserEntity::getUsername)
+                    .toList()
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+        summary = "Salir de un lobby",
+        description = "Permite a un jugador salir del lobby actual. Si es el último jugador, el lobby se marca como ABANDONADO."
+    )
+    @DeleteMapping("/{code}/leave")
+    public ResponseEntity<String> leaveLobby(@PathVariable String code) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        lobbyService.leaveLobby(code, username);
+
+        return ResponseEntity.ok("El jugador " + username + " ha salido del lobby " + code);
+    }
+
+
+
+
 
     
     private LobbyResponseDTO mapToDTO(LobbyEntity lobby) {

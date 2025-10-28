@@ -44,12 +44,4 @@ public class LobbyRequestDTO {
     @Size(max = 20, message = "El estado no puede superar los 20 caracteres.")
     private String status = "EN_ESPERA";
 
-    @Schema(
-        description = "Nombre de usuario del creador del lobby.",
-        example = "jugador1",
-        maxLength = 50
-    )
-    @NotBlank(message = "El nombre de usuario del creador es obligatorio.")
-    @Size(max = 50, message = "El nombre de usuario no puede superar los 50 caracteres.")
-    private String creatorUsername;
 }

@@ -10,8 +10,10 @@ public interface LobbyService {
     LobbyEntity createLobby(String mazeSize, int maxPlayers, boolean isPublic, String status, String creatorUsername);
     List<LobbyEntity> getAllLobbies();
     LobbyEntity getLobbyByCode(String code);
-    void deleteLobby(UUID id);
-    void addPlayerToLobby(UUID lobbyId, UUID userId);
     void removePlayerFromLobby(UUID lobbyId, UUID userId);
+    LobbyEntity joinLobbyByCode(String code, String username);
+    void leaveLobby(String code, String username);
+
+
 
 }
