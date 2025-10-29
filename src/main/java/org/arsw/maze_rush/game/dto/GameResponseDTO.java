@@ -5,6 +5,8 @@ import lombok.Data;
 import org.arsw.maze_rush.game.entities.GameEntity;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.users.entities.UserEntity;
+import org.arsw.maze_rush.maze.dto.MazeResponseDTO;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +38,10 @@ public class GameResponseDTO {
     @Schema(description = "Lista de jugadores que participan en el juego.")
     private List<String> players;
 
+    @Schema(description = "Laberinto asociado a la partida.")
+    private MazeResponseDTO maze;
+
+
     public static GameResponseDTO fromEntity(GameEntity game) {
         GameResponseDTO dto = new GameResponseDTO();
 
@@ -54,7 +60,7 @@ public class GameResponseDTO {
                         .map(UserEntity::getUsername)
                         .collect(Collectors.toList())
         );
-
+        dto.setMaze(MazeResponseDTO.fromEntity(game.getMaze()));
         return dto;
     }
 }

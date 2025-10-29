@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.arsw.maze_rush.users.entities.UserEntity;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
+import org.arsw.maze_rush.maze.entities.MazeEntity;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -43,6 +44,11 @@ public class GameEntity {
     private LocalDateTime startedAt = LocalDateTime.now();
 
     private LocalDateTime finishedAt;
+
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "maze_id")
+    private MazeEntity maze;
+
 
     @PrePersist
     protected void onCreate() {

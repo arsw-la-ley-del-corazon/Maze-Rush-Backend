@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.arsw.maze_rush.common.ApiError;
 import org.arsw.maze_rush.game.dto.GameResponseDTO;
 import org.arsw.maze_rush.game.entities.GameEntity;
 import org.arsw.maze_rush.game.service.GameService;
@@ -16,7 +17,10 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/game")
-@Tag(name = "Game", description = "Endpoints para la gestión y control de partidas (juegos) dentro de Maze Rush.")
+@Tag(
+    name = "Game",
+    description = "Endpoints para la gestión y control de partidas (juegos) dentro de Maze Rush."
+)
 public class GameController {
 
     private final GameService gameService;
@@ -25,10 +29,13 @@ public class GameController {
         this.gameService = gameService;
     }
 
+
     @Operation(
         summary = "Iniciar un nuevo juego desde un lobby",
-        description = "Crea una partida basada en el lobby con el código proporcionado. " +
-                      "Copia los jugadores del lobby, marca el lobby como 'EN_JUEGO' y devuelve los datos del juego inicializado.",
+        description = """
+            Crea una partida basada en el lobby con el código proporcionado.
+            Copia los jugadores del lobby, marca el lobby como 'EN_JUEGO' y devuelve los datos del juego inicializado.
+            """,
         parameters = {
             @Parameter(
                 name = "lobbyCode",
@@ -38,11 +45,26 @@ public class GameController {
             )
         },
         responses = {
-            @ApiResponse(responseCode = "200", description = "Juego creado correctamente",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "No se encontró el lobby con el código especificado"),
-            @ApiResponse(responseCode = "409", description = "El lobby ya se encuentra en juego o no cumple condiciones"),
-            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+            @ApiResponse(
+                responseCode = "200",
+                description = "Juego creado correctamente",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameResponseDTO.class))
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "No se encontró el lobby con el código especificado",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            ),
+            @ApiResponse(
+                responseCode = "409",
+                description = "Ya existe un juego activo para este lobby o el lobby no cumple condiciones (por ejemplo, menos de 2 jugadores)",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            ),
+            @ApiResponse(
+                responseCode = "500",
+                description = "Error interno del servidor",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            )
         }
     )
     @PostMapping("/start/{lobbyCode}")
@@ -54,10 +76,12 @@ public class GameController {
         return ResponseEntity.ok(response);
     }
 
-
     @Operation(
         summary = "Obtener información de una partida",
-        description = "Devuelve los detalles completos de una partida específica usando su UUID.",
+        description = """
+            Devuelve los detalles completos de una partida específica usando su UUID.
+            Incluye el estado actual, la lista de jugadores y las fechas de inicio y fin.
+            """,
         parameters = {
             @Parameter(
                 name = "id",
@@ -67,10 +91,21 @@ public class GameController {
             )
         },
         responses = {
-            @ApiResponse(responseCode = "200", description = "Juego encontrado correctamente",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Juego no encontrado"),
-            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+            @ApiResponse(
+                responseCode = "200",
+                description = "Juego encontrado correctamente",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameResponseDTO.class))
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Juego no encontrado",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            ),
+            @ApiResponse(
+                responseCode = "500",
+                description = "Error interno del servidor",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            )
         }
     )
     @GetMapping("/{id}")
@@ -82,7 +117,10 @@ public class GameController {
 
     @Operation(
         summary = "Finalizar un juego en curso",
-        description = "Marca una partida como finalizada, asigna la fecha de fin (`finishedAt`) y actualiza el estado del lobby asociado.",
+        description = """
+            Marca una partida como finalizada, asigna la fecha de fin (`finishedAt`)
+            y actualiza el estado del lobby asociado a 'FINALIZADO'.
+            """,
         parameters = {
             @Parameter(
                 name = "id",
@@ -92,11 +130,26 @@ public class GameController {
             )
         },
         responses = {
-            @ApiResponse(responseCode = "200", description = "Juego finalizado correctamente",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Juego no encontrado"),
-            @ApiResponse(responseCode = "409", description = "El juego ya estaba finalizado"),
-            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+            @ApiResponse(
+                responseCode = "200",
+                description = "Juego finalizado correctamente",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameResponseDTO.class))
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Juego no encontrado",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            ),
+            @ApiResponse(
+                responseCode = "409",
+                description = "El juego ya estaba finalizado o no puede cambiar de estado",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            ),
+            @ApiResponse(
+                responseCode = "500",
+                description = "Error interno del servidor",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))
+            )
         }
     )
     @PutMapping("/finish/{id}")

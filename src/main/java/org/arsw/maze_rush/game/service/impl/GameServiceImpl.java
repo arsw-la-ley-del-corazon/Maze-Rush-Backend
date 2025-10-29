@@ -10,6 +10,8 @@ import org.arsw.maze_rush.game.repository.GameRepository;
 import org.arsw.maze_rush.game.service.GameService;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.repository.LobbyRepository;
+import org.arsw.maze_rush.maze.entities.MazeEntity;
+import org.arsw.maze_rush.maze.service.MazeService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,10 +21,15 @@ public class GameServiceImpl implements GameService {
 
     private final GameRepository gameRepository;
     private final LobbyRepository lobbyRepository;
+    private final MazeService mazeService;
 
-    public GameServiceImpl(GameRepository gameRepository, LobbyRepository lobbyRepository) {
+    public GameServiceImpl(GameRepository gameRepository,
+                           LobbyRepository lobbyRepository,
+                           MazeService mazeService) {
         this.gameRepository = gameRepository;
         this.lobbyRepository = lobbyRepository;
+        this.mazeService = mazeService;
+
     }
 
     @Override
@@ -40,11 +47,14 @@ public class GameServiceImpl implements GameService {
             }
         });
 
+        MazeEntity maze = mazeService.generateMaze(lobby.getMazeSize());
+
         lobby.setStatus("EN_JUEGO");
         lobbyRepository.save(lobby);
 
         GameEntity game = GameEntity.builder()
                 .lobby(lobby)
+                .maze(maze)   
                 .players(new HashSet<>(lobby.getPlayers()))
                 .status("EN_CURSO")
                 .startedAt(LocalDateTime.now())
