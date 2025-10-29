@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.arsw.maze_rush.common.exceptions.ConflictException;
+import org.arsw.maze_rush.common.exceptions.LobbyInUseException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
 import org.arsw.maze_rush.common.exceptions.UnauthorizedException;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex, WebRequest request) {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(LobbyInUseException.class)
+    public ResponseEntity<ApiError> handleLobbyInUse(LobbyInUseException ex, WebRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex, WebRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)
