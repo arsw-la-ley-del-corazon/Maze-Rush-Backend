@@ -17,10 +17,9 @@ public class MazeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(nullable = false, unique = true, columnDefinition = "uuid")
     private UUID id;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false)
     private String size; 
 
     @Column(nullable = false)
@@ -31,8 +30,17 @@ public class MazeEntity {
 
     @Lob
     @Column(nullable = false)
-    private String layout;
+    private String layout; 
 
-    @OneToOne(mappedBy = "maze")
-    private GameEntity game;
+    @Column(nullable = false)
+    private int startX;
+
+    @Column(nullable = false)
+    private int startY;
+
+    @Column(nullable = false)
+    private int goalX;
+
+    @Column(nullable = false)
+    private int goalY;
 }

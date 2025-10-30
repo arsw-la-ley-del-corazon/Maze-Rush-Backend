@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Random;
+import java.util.Stack;
 import java.util.UUID;
 
 @Service
@@ -27,33 +28,76 @@ public class MazeServiceImpl implements MazeService {
         int width, height;
 
         switch (size.toUpperCase()) {
-            case "SMALL" -> { width = 10; height = 10; }
-            case "MEDIUM" -> { width = 20; height = 20; }
-            case "LARGE" -> { width = 30; height = 30; }
-            default -> throw new IllegalArgumentException("Tamaño de laberinto no válido: " + size);
+            case "SMALL" -> { width = height = 15; }
+            case "LARGE" -> { width = height = 39; }
+            default -> { width = height = 25; } // Medium
         }
 
-        int[][] layout = new int[height][width];
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                layout[y][x] = (random.nextInt(100) < 25) ? 1 : 0; 
-            }
-        }
+        int[][] maze = generatePerfectMaze(width, height);
 
         try {
-            String jsonLayout = objectMapper.writeValueAsString(layout);
+            String jsonLayout = objectMapper.writeValueAsString(maze);
 
-            MazeEntity maze = MazeEntity.builder()
+            MazeEntity mazeEntity = MazeEntity.builder()
                     .size(size.toUpperCase())
                     .width(width)
                     .height(height)
                     .layout(jsonLayout)
+                    .startX(1)
+                    .startY(1)
+                    .goalX(width - 2)
+                    .goalY(height - 2)
                     .build();
 
-            return mazeRepository.save(maze);
+            return mazeRepository.save(mazeEntity);
         } catch (Exception e) {
-            throw new RuntimeException("Error generando laberinto", e);
+            throw new RuntimeException("Error generando el laberinto", e);
         }
+    }
+    // Algoritmo de generación de laberintos: Backtracking
+    private int[][] generatePerfectMaze(int width, int height) {
+        int[][] maze = new int[height][width];
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                maze[y][x] = 1;
+            }
+        }
+        int startX = 1, startY = 1;
+        maze[startY][startX] = 0;
+        Stack<int[]> stack = new Stack<>();
+        stack.push(new int[]{startX, startY});
+        int[][] directions = {{0, 2}, {0, -2}, {2, 0}, {-2, 0}};
+        while (!stack.isEmpty()) {
+            int[] current = stack.peek();
+            int cx = current[0];
+            int cy = current[1];
+
+            java.util.List<int[]> unvisited = new java.util.ArrayList<>();
+            for (int[] dir : directions) {
+                int nx = cx + dir[0];
+                int ny = cy + dir[1];
+                if (ny > 0 && ny < height - 1 && nx > 0 && nx < width - 1 && maze[ny][nx] == 1) {
+                    unvisited.add(new int[]{nx, ny});
+                }
+            }
+            if (unvisited.isEmpty()) {
+                stack.pop();
+            } else {
+                int[] next = unvisited.get(random.nextInt(unvisited.size()));
+                int nx = next[0];
+                int ny = next[1];
+
+                maze[(cy + ny) / 2][(cx + nx) / 2] = 0;
+                maze[ny][nx] = 0;
+
+                stack.push(next);
+            }
+        }
+        maze[1][1] = 0;
+        maze[height - 2][width - 2] = 0;
+
+        return maze;
     }
 
     @Override
