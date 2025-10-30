@@ -52,6 +52,9 @@ public class SecurityConfig {
                 // OAuth2 endpoints
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 
+                // WebSocket endpoints
+                .requestMatchers("/ws/**", "/app/**", "/topic/**", "/queue/**", "/user/**").permitAll()
+                
                 // Endpoints públicos de usuarios (solo para consulta)
                 .requestMatchers(HttpMethod.GET, "/api/v1/users").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/users/**").permitAll()

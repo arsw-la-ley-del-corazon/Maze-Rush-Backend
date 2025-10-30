@@ -129,6 +129,12 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         
+        <!-- WebSocket support for STOMP messaging -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        
     </dependencies>
 
     <build>
