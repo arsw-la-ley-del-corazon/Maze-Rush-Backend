@@ -47,7 +47,12 @@ public class GameServiceImpl implements GameService {
             }
         });
 
-        MazeEntity maze = mazeService.generateMaze(lobby.getMazeSize());
+        MazeEntity maze = lobby.getMaze();
+        
+        if (maze == null) {
+        maze = mazeService.generateMaze(lobby.getMazeSize());
+        lobby.setMaze(maze);
+    }
 
         lobby.setStatus("EN_JUEGO");
         lobbyRepository.save(lobby);

@@ -8,7 +8,7 @@ import java.util.HashSet;
 import java.util.UUID;
 import java.util.Set;
 
-
+import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.arsw.maze_rush.users.entities.UserEntity;
 
 import jakarta.persistence.*;
@@ -62,6 +62,11 @@ public class LobbyEntity {
     )
     @com.fasterxml.jackson.annotation.JsonManagedReference
     private Set<UserEntity> players = new HashSet<>();
+    
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "maze_id")
+    private MazeEntity maze;
+
 
     @PrePersist
     protected void onCreate() {
