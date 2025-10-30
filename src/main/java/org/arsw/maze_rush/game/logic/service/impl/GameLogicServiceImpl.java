@@ -28,18 +28,22 @@ public class GameLogicServiceImpl implements GameLogicService {
 
     @Override
     public GameState initializeGame(UUID gameId) {
+        
         GameEntity game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("Juego no encontrado"));
 
-        MazeEntity maze = game.getLobby().getMaze();
-        if (maze == null) throw new IllegalStateException("El lobby no tiene laberinto asociado");
-
+        MazeEntity maze = game.getMaze();
+        if (maze == null){
+            throw new IllegalStateException("El lobby no tiene laberinto asociado");
+        }
+        if (game.getPlayers() == null || game.getPlayers().isEmpty()) {
+            throw new IllegalStateException("El juego no tiene jugadores asignados");
+        }
         List<PlayerPosition> positions = new ArrayList<>();
-        int startX = 1, startY = 1;
-
+        int startX = maze.getStartX();
+        int startY = maze.getStartY();
         for (var player : game.getPlayers()) {
             positions.add(new PlayerPosition(player, startX, startY, 0));
-            startX += 2;
         }
 
         GameState state = new GameState();
@@ -48,6 +52,7 @@ public class GameLogicServiceImpl implements GameLogicService {
         state.setPlayerPositions(positions);
 
         activeGames.put(gameId, state);
+        
         return state;
     }
 

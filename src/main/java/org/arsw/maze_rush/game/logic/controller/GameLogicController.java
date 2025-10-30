@@ -2,9 +2,9 @@ package org.arsw.maze_rush.game.logic.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
 import org.arsw.maze_rush.game.logic.entities.GameState;
@@ -16,7 +16,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/game-logic")
-@Tag(name = "Game Logic (Temporal)", description = "Endpoints temporales para probar la lógica del juego en Maze Rush.")
+@Tag(name = "Game Logic (Temporal)", description = "Endpoints temporales para probar la lógica del juego Maze Rush.")
 public class GameLogicController {
 
     private final GameLogicService gameLogicService;
@@ -27,14 +27,17 @@ public class GameLogicController {
 
     @Operation(
         summary = "Inicializar la lógica de un juego",
-        description = "Genera el estado inicial de la partida con las posiciones base de cada jugador en el laberinto.",
+        description = "Crea el estado inicial en memoria para un juego existente. " +
+                      "Carga el laberinto, las posiciones de los jugadores y el estado inicial.",
         parameters = {
             @Parameter(name = "gameId", description = "UUID del juego ya iniciado", required = true)
         },
         responses = {
             @ApiResponse(responseCode = "200", description = "Juego inicializado correctamente",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameState.class))),
+                content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = GameState.class))),
             @ApiResponse(responseCode = "404", description = "Juego no encontrado"),
+            @ApiResponse(responseCode = "409", description = "Error al inicializar la lógica del juego"),
             @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
@@ -46,12 +49,18 @@ public class GameLogicController {
 
     @Operation(
         summary = "Mover un jugador dentro del juego",
-        description = "Permite enviar un movimiento (UP, DOWN, LEFT, RIGHT) de un jugador y actualiza su posición en el laberinto.",
+        description = "Procesa un movimiento del jugador en el laberinto actual (UP, DOWN, LEFT, RIGHT). " +
+                      "Valida colisiones y límites del mapa antes de aplicar el movimiento.",
+        parameters = {
+            @Parameter(name = "gameId", description = "UUID del juego activo", required = true)
+        },
         responses = {
-            @ApiResponse(responseCode = "200", description = "Movimiento aplicado correctamente",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameState.class))),
-            @ApiResponse(responseCode = "400", description = "Movimiento inválido o fuera de límites"),
-            @ApiResponse(responseCode = "404", description = "Jugador o juego no encontrado")
+            @ApiResponse(responseCode = "200", description = "Movimiento realizado correctamente",
+                content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = GameState.class))),
+            @ApiResponse(responseCode = "404", description = "Juego o jugador no encontrado"),
+            @ApiResponse(responseCode = "400", description = "Movimiento inválido o bloqueado"),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
     @PostMapping("/move/{gameId}")
@@ -65,15 +74,20 @@ public class GameLogicController {
 
     @Operation(
         summary = "Obtener el estado actual del juego",
-        description = "Devuelve las posiciones actuales de los jugadores en el laberinto.",
+        description = "Devuelve el estado actual del juego almacenado en memoria, incluyendo posiciones y puntajes.",
+        parameters = {
+            @Parameter(name = "gameId", description = "UUID del juego activo", required = true)
+        },
         responses = {
-            @ApiResponse(responseCode = "200", description = "Estado actual obtenido correctamente",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = GameState.class))),
-            @ApiResponse(responseCode = "404", description = "Juego no encontrado o no inicializado")
+            @ApiResponse(responseCode = "200", description = "Estado del juego obtenido correctamente",
+                content = @Content(mediaType = "application/json",
+                schema = @Schema(implementation = GameState.class))),
+            @ApiResponse(responseCode = "404", description = "Juego no encontrado en memoria"),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
     @GetMapping("/state/{gameId}")
-    public ResponseEntity<GameState> getCurrentState(@PathVariable UUID gameId) {
+    public ResponseEntity<GameState> getCurrentGameState(@PathVariable UUID gameId) {
         GameState state = gameLogicService.getCurrentState(gameId);
         return ResponseEntity.ok(state);
     }
