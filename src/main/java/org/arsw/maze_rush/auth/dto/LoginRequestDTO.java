@@ -28,8 +28,8 @@ public class LoginRequestDTO {
     @Schema(
         description = "Contraseña del usuario", 
         example = "mySecurePassword123",
-        format = "password",
-        required = true
+        format = "password"
+        
     )
     @NotBlank(message = "La contraseña es obligatoria")
     private String password;
