@@ -1,14 +1,18 @@
 package org.arsw.maze_rush.maze.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.arsw.maze_rush.common.exceptions.MazeGenerationException;
 import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.arsw.maze_rush.maze.repository.MazeRepository;
 import org.arsw.maze_rush.maze.service.MazeService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Random;
-import java.util.Stack;
 import java.util.UUID;
 
 @Service
@@ -17,7 +21,8 @@ public class MazeServiceImpl implements MazeService {
 
     private final MazeRepository mazeRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final Random random = new Random();
+    private static final SecureRandom RANDOM = new SecureRandom();
+
 
     public MazeServiceImpl(MazeRepository mazeRepository) {
         this.mazeRepository = mazeRepository;
@@ -25,12 +30,13 @@ public class MazeServiceImpl implements MazeService {
 
     @Override
     public MazeEntity generateMaze(String size) {
-        int width, height;
+        int width;
+        int height;
 
         switch (size.toUpperCase()) {
-            case "SMALL" -> { width = height = 15; }
-            case "LARGE" -> { width = height = 39; }
-            default -> { width = height = 25; } // Medium
+            case "SMALL" -> width = height = 15;
+            case "LARGE" -> width = height = 39; 
+            default ->  width = height = 25;  
         }
 
         int[][] maze = generatePerfectMaze(width, height);
@@ -51,7 +57,7 @@ public class MazeServiceImpl implements MazeService {
 
             return mazeRepository.save(mazeEntity);
         } catch (Exception e) {
-            throw new RuntimeException("Error generando el laberinto", e);
+            throw new MazeGenerationException("Error generando el laberinto", e);
         }
     }
     // Algoritmo de generación de laberintos: Backtracking
@@ -63,9 +69,10 @@ public class MazeServiceImpl implements MazeService {
                 maze[y][x] = 1;
             }
         }
-        int startX = 1, startY = 1;
+        int startX = 1;
+        int startY = 1;
         maze[startY][startX] = 0;
-        Stack<int[]> stack = new Stack<>();
+        Deque<int[]> stack = new ArrayDeque<>();
         stack.push(new int[]{startX, startY});
         int[][] directions = {{0, 2}, {0, -2}, {2, 0}, {-2, 0}};
         while (!stack.isEmpty()) {
@@ -84,7 +91,7 @@ public class MazeServiceImpl implements MazeService {
             if (unvisited.isEmpty()) {
                 stack.pop();
             } else {
-                int[] next = unvisited.get(random.nextInt(unvisited.size()));
+                int[] next = unvisited.get(RANDOM.nextInt(unvisited.size()));
                 int nx = next[0];
                 int ny = next[1];
 

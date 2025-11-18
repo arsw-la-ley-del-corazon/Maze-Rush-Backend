@@ -2,7 +2,6 @@ package org.arsw.maze_rush.maze.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.arsw.maze_rush.game.entities.GameEntity;
 
 import java.util.UUID;
 

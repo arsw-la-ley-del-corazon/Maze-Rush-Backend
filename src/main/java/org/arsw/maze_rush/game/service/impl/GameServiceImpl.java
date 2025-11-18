@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class GameServiceImpl implements GameService {
+    private static final String STATUS_FINALIZADO = "FINALIZADO";
+
 
     private final GameRepository gameRepository;
     private final LobbyRepository lobbyRepository;
@@ -42,7 +44,7 @@ public class GameServiceImpl implements GameService {
         }
 
         gameRepository.findByLobby_Code(lobbyCode).ifPresent(existingGame -> {
-            if (!"FINALIZADO".equalsIgnoreCase(existingGame.getStatus())) {
+            if (!STATUS_FINALIZADO.equalsIgnoreCase(existingGame.getStatus())) {
                 throw new IllegalStateException("Ya existe un juego activo para este lobby");
             }
         });
@@ -81,17 +83,17 @@ public class GameServiceImpl implements GameService {
             GameEntity game = gameRepository.findById(id)
                     .orElseThrow(() -> new NotFoundException("Juego no encontrado con ID: " + id));
 
-            if ("FINALIZADO".equalsIgnoreCase(game.getStatus())) {
+            if (STATUS_FINALIZADO.equalsIgnoreCase(game.getStatus())) {
                 throw new IllegalStateException("El juego ya está finalizado");
             }
 
-            game.setStatus("FINALIZADO");
+            game.setStatus(STATUS_FINALIZADO);
             game.setFinishedAt(LocalDateTime.now());
 
     
             LobbyEntity lobby = game.getLobby();
             if (lobby != null) {
-                lobby.setStatus("FINALIZADO");
+                lobby.setStatus(STATUS_FINALIZADO);
                 lobbyRepository.save(lobby);
             }
 

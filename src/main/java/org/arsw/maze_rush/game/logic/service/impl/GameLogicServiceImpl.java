@@ -7,7 +7,6 @@ import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.entities.GameEntity;
 import org.arsw.maze_rush.game.repository.GameRepository;
 import org.arsw.maze_rush.maze.entities.MazeEntity;
-import org.arsw.maze_rush.maze.repository.MazeRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -15,15 +14,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class GameLogicServiceImpl implements GameLogicService {
+    
 
     private final GameRepository gameRepository;
-    private final MazeRepository mazeRepository;
-
     private final Map<UUID, GameState> activeGames = new ConcurrentHashMap<>();
 
-    public GameLogicServiceImpl(GameRepository gameRepository, MazeRepository mazeRepository) {
+    public GameLogicServiceImpl(GameRepository gameRepository) {
         this.gameRepository = gameRepository;
-        this.mazeRepository = mazeRepository;
     }
 
     @Override

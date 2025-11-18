@@ -12,15 +12,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.redis.core.RedisTemplate;
 
+import java.security.SecureRandom;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.List;
-import java.util.Random;
-import java.util.UUID;
 
 @Service
 @Transactional
 public class LobbyServiceImpl implements LobbyService {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String LOBBY_NOT_FOUND = "No se encontró el lobby con el código: ";
+    private static final String USER_NOT_FOUND = "Usuario no encontrado: ";
+    private static final String REDIS_LOBBY_PREFIX = "lobby:";
 
     private final UserRepository userRepository;
     private final LobbyRepository lobbyRepository;
@@ -29,24 +34,66 @@ public class LobbyServiceImpl implements LobbyService {
     public LobbyServiceImpl(LobbyRepository lobbyRepository,
                             UserRepository userRepository,
                             RedisTemplate<String, Object> redisTemplate) {
-
         this.lobbyRepository = lobbyRepository;
         this.userRepository = userRepository;
         this.redisTemplate = redisTemplate;
     }
 
-    // Genera un código aleatorio de 6 caracteres alfanuméricos. 
+
+    private LobbyCacheDTO toCache(LobbyEntity lobby) {
+        LobbyCacheDTO cache = new LobbyCacheDTO();
+        cache.setId(lobby.getId());
+        cache.setCode(lobby.getCode());
+        cache.setMazeSize(lobby.getMazeSize());
+        cache.setMaxPlayers(lobby.getMaxPlayers());
+        cache.setPublic(lobby.isPublic());
+        cache.setStatus(lobby.getStatus());
+        cache.setCreatorUsername(lobby.getCreatorUsername());
+        cache.setPlayers(
+                lobby.getPlayers().stream()
+                        .map(UserEntity::getUsername)
+                        .toList()
+        );
+        return cache;
+    }
+
+    private LobbyEntity fromCache(LobbyCacheDTO cache) {
+        LobbyEntity lobby = new LobbyEntity();
+        lobby.setId(cache.getId());
+        lobby.setCode(cache.getCode());
+        lobby.setMazeSize(cache.getMazeSize());
+        lobby.setMaxPlayers(cache.getMaxPlayers());
+        lobby.setPublic(cache.isPublic());
+        lobby.setStatus(cache.getStatus());
+        lobby.setCreatorUsername(cache.getCreatorUsername());
+        lobby.setPlayers(
+                cache.getPlayers().stream()
+                        .map(username -> userRepository.findByUsernameIgnoreCase(username).orElse(null))
+                        .filter(u -> u != null)
+                        .collect(Collectors.toSet())
+        );
+        return lobby;
+    }
+
+    private void saveToRedis(LobbyEntity lobby) {
+        redisTemplate.opsForValue().set(
+                REDIS_LOBBY_PREFIX + lobby.getCode(),
+                toCache(lobby),
+                1,
+                TimeUnit.HOURS
+        );
+    }
+
     private String generateCode() {
         final String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         StringBuilder code = new StringBuilder();
-        Random random = new Random();
+
         for (int i = 0; i < 6; i++) {
-            code.append(chars.charAt(random.nextInt(chars.length())));
+            code.append(chars.charAt(RANDOM.nextInt(chars.length())));
         }
         return code.toString();
     }
 
-    // Genera un código que no exista en DB. 
     private String generateUniqueCode() {
         String code;
         do {
@@ -55,8 +102,11 @@ public class LobbyServiceImpl implements LobbyService {
         return code;
     }
 
+
     @Override
-    public LobbyEntity createLobby(String mazeSize, int maxPlayers, boolean isPublic, String status, String creatorUsername) {
+    public LobbyEntity createLobby(String mazeSize, int maxPlayers, boolean isPublic,
+                                   String status, String creatorUsername) {
+
         if (maxPlayers < 2 || maxPlayers > 4) {
             throw new IllegalArgumentException("El número de jugadores debe estar entre 2 y 4");
         }
@@ -69,33 +119,17 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setStatus((status == null || status.isBlank()) ? "EN_ESPERA" : status);
         lobby.setCreatorUsername(creatorUsername);
 
-        //  Buscar y agregar al creador
         UserEntity creator = userRepository.findByUsernameIgnoreCase(creatorUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario creador no encontrado: " + creatorUsername));
 
-        lobby.addPlayer(creator);     
+        lobby.addPlayer(creator);
         creator.getLobbies().add(lobby);
 
         LobbyEntity savedLobby = lobbyRepository.save(lobby);
-
-        LobbyCacheDTO cache = new LobbyCacheDTO();
-        cache.setId(savedLobby.getId());
-        cache.setCode(savedLobby.getCode());
-        cache.setMazeSize(savedLobby.getMazeSize());
-        cache.setMaxPlayers(savedLobby.getMaxPlayers());
-        cache.setPublic(savedLobby.isPublic());
-        cache.setStatus(savedLobby.getStatus());
-        cache.setCreatorUsername(savedLobby.getCreatorUsername());
-        cache.setPlayers(savedLobby.getPlayers()
-                .stream()
-                .map(UserEntity::getUsername)
-                .toList());
-
-        redisTemplate.opsForValue().set("lobby:" + savedLobby.getCode(), cache, 1, TimeUnit.HOURS);
+        saveToRedis(savedLobby);
 
         return savedLobby;
     }
-
 
     @Override
     @Transactional(readOnly = true)
@@ -106,53 +140,26 @@ public class LobbyServiceImpl implements LobbyService {
     @Override
     @Transactional(readOnly = true)
     public LobbyEntity getLobbyByCode(String code) {
-        //  Primero buscar en Redis (DTO)
-        LobbyCacheDTO cachedLobby = (LobbyCacheDTO) redisTemplate.opsForValue().get("lobby:" + code);
+
+        LobbyCacheDTO cachedLobby =
+                (LobbyCacheDTO) redisTemplate.opsForValue().get(REDIS_LOBBY_PREFIX + code);
+
         if (cachedLobby != null) {
-        LobbyEntity lobby = new LobbyEntity();
-        lobby.setId(cachedLobby.getId());
-        lobby.setCode(cachedLobby.getCode());
-        lobby.setMazeSize(cachedLobby.getMazeSize());
-        lobby.setMaxPlayers(cachedLobby.getMaxPlayers());
-        lobby.setPublic(cachedLobby.isPublic());
-        lobby.setStatus(cachedLobby.getStatus());
-        lobby.setCreatorUsername(cachedLobby.getCreatorUsername());
-        lobby.setPlayers(
-            cachedLobby.getPlayers().stream()
-                .map(username -> userRepository.findByUsernameIgnoreCase(username).orElse(null))
-                .filter(u -> u != null)
-                .collect(Collectors.toSet())
-        );
-        return lobby;
-    }
+            return fromCache(cachedLobby);
+        }
 
-        // Si no está en Redis, buscar en base de datos
-        LobbyEntity lobby = lobbyRepository.findByCode(code)
-                .orElseThrow(() -> new NotFoundException("No se encontró el lobby con el código: " + code));
-
-        return lobby;
-    }
-
-
-    @Override
-    public void removePlayerFromLobby(UUID lobbyId, UUID userId) {
-        LobbyEntity lobby = lobbyRepository.findById(lobbyId)
-                .orElseThrow(() -> new IllegalArgumentException("Lobby no encontrado con ID: " + lobbyId));
-
-        UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado con ID: " + userId));
-
-        lobby.removePlayer(user);
-        lobbyRepository.save(lobby);
+        return lobbyRepository.findByCode(code)
+                .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
     }
 
     @Override
     public LobbyEntity joinLobbyByCode(String code, String username) {
+
         LobbyEntity lobby = lobbyRepository.findByCode(code)
-                .orElseThrow(() -> new NotFoundException("No se encontró el lobby con el código: " + code));
+                .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
 
         UserEntity user = userRepository.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + username));
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
 
         if (lobby.getPlayers().contains(user)) {
             throw new IllegalStateException("El jugador ya está en este lobby");
@@ -160,36 +167,23 @@ public class LobbyServiceImpl implements LobbyService {
 
         if (lobby.getPlayers().size() >= lobby.getMaxPlayers()) {
             throw new LobbyFullException("El lobby ya alcanzó el número máximo de jugadores permitidos");
-
         }
+
         lobby.addPlayer(user);
         LobbyEntity updatedLobby = lobbyRepository.save(lobby);
-        LobbyCacheDTO cache = new LobbyCacheDTO();
-        cache.setId(updatedLobby.getId());
-        cache.setCode(updatedLobby.getCode());
-        cache.setMazeSize(updatedLobby.getMazeSize());
-        cache.setMaxPlayers(updatedLobby.getMaxPlayers());
-        cache.setPublic(updatedLobby.isPublic());
-        cache.setStatus(updatedLobby.getStatus());
-        cache.setCreatorUsername(updatedLobby.getCreatorUsername());
-        cache.setPlayers(updatedLobby.getPlayers()
-                .stream()
-                .map(UserEntity::getUsername)
-                .toList());
-
-        redisTemplate.opsForValue().set("lobby:" + updatedLobby.getCode(), cache, 1, TimeUnit.HOURS);
+        saveToRedis(updatedLobby);
 
         return updatedLobby;
     }
 
     @Override
     public void leaveLobby(String code, String username) {
-        
+
         LobbyEntity lobby = lobbyRepository.findByCode(code)
-                .orElseThrow(() -> new NotFoundException("No se encontró el lobby con el código: " + code));
+                .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
 
         UserEntity user = userRepository.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado: " + username));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND + username));
 
         if (!lobby.getPlayers().contains(user)) {
             throw new IllegalStateException("El jugador no pertenece a este lobby");
@@ -200,23 +194,21 @@ public class LobbyServiceImpl implements LobbyService {
         if (lobby.getPlayers().isEmpty()) {
             lobby.setStatus("ABANDONADO");
         }
-        LobbyEntity updatedLobby = lobbyRepository.save(lobby);
-        LobbyCacheDTO cache = new LobbyCacheDTO();
-        cache.setId(updatedLobby.getId());
-        cache.setCode(updatedLobby.getCode());
-        cache.setMazeSize(updatedLobby.getMazeSize());
-        cache.setMaxPlayers(updatedLobby.getMaxPlayers());
-        cache.setPublic(updatedLobby.isPublic());
-        cache.setStatus(updatedLobby.getStatus());
-        cache.setCreatorUsername(updatedLobby.getCreatorUsername());
-        cache.setPlayers(updatedLobby.getPlayers()
-                .stream()
-                .map(UserEntity::getUsername)
-                .toList());
 
-        redisTemplate.opsForValue().set("lobby:" + updatedLobby.getCode(), cache, 1, TimeUnit.HOURS);
+        LobbyEntity updatedLobby = lobbyRepository.save(lobby);
+        saveToRedis(updatedLobby);
     }
 
+    @Override
+    public void removePlayerFromLobby(UUID lobbyId, UUID userId) {
 
+        LobbyEntity lobby = lobbyRepository.findById(lobbyId)
+                .orElseThrow(() -> new IllegalArgumentException("Lobby no encontrado con ID: " + lobbyId));
 
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado con ID: " + userId));
+
+        lobby.removePlayer(user);
+        lobbyRepository.save(lobby);
+    }
 }
