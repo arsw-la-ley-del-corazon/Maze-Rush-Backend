@@ -7,6 +7,7 @@ import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.entities.GameEntity;
 import org.arsw.maze_rush.game.repository.GameRepository;
 import org.arsw.maze_rush.maze.entities.MazeEntity;
+import org.arsw.maze_rush.powerups.entities.PowerUp;
 import org.arsw.maze_rush.powerups.service.PowerUpService;
 import org.springframework.stereotype.Service;
 
@@ -44,6 +45,14 @@ public class GameLogicServiceImpl implements GameLogicService {
             positions.add(new PlayerPosition(player, startX, startY, 0));
         }
         var powerUps = powerUpService.generatePowerUps(maze, positions);
+
+        char[][] matrix = convertJSONLayoutToMatrix(maze.getLayout(), maze.getWidth(), maze.getHeight());
+        applyPowerUpsToLayout(matrix, powerUps);
+        String updatedLayout = convertMatrixToJSON(matrix);
+
+        maze.setLayout(updatedLayout);
+
+        gameRepository.save(game);
 
         GameState state = new GameState();
         state.setGameId(gameId);
@@ -109,4 +118,35 @@ public class GameLogicServiceImpl implements GameLogicService {
     public GameState getCurrentState(UUID gameId) {
         return activeGames.get(gameId);
     }
+
+    private char[][] convertJSONLayoutToMatrix(String layout, int width, int height) {
+        String[] rows = layout.split("\n");
+
+        char[][] matrix = new char[height][width];
+
+        for (int y = 0; y < height; y++) {
+            matrix[y] = rows[y].toCharArray();
+        }
+
+        return matrix;
+    }
+
+    private void applyPowerUpsToLayout(char[][] matrix, List<PowerUp> powerUps) {
+        for (PowerUp pu : powerUps) {
+            matrix[pu.getY()][pu.getX()] = 'P'; // P = PowerUp
+        }
+    }
+
+    private String convertMatrixToJSON(char[][] matrix) {
+        StringBuilder sb = new StringBuilder();
+
+        for (char[] row : matrix) {
+            sb.append(new String(row)).append("\n");
+        }
+
+        return sb.toString().trim();
+    }
+
+
+
 }

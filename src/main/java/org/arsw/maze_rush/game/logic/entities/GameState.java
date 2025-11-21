@@ -12,5 +12,6 @@ public class GameState {
     private String status;
     private List<PlayerPosition> playerPositions;
     private List<PowerUp> powerUps;
+    
 
 }
