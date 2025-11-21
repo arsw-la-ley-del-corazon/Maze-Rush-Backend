@@ -35,12 +35,15 @@ public class GameEntity {
         joinColumns = @JoinColumn(name = "game_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
+    @Builder.Default
     private Set<UserEntity> players = new HashSet<>();
 
     @Column(nullable = false, length = 20)
+    @Builder.Default
     private String status = "EN_CURSO";
 
     @Column(nullable = false, updatable = false)
+    @Builder.Default
     private LocalDateTime startedAt = LocalDateTime.now();
 
     private LocalDateTime finishedAt;
