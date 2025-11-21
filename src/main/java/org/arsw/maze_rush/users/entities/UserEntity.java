@@ -1,13 +1,18 @@
 package org.arsw.maze_rush.users.entities;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.UUID;
+import java.util.Set;
+
+import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -56,6 +61,10 @@ public class UserEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @ManyToMany(mappedBy = "players")
+    @com.fasterxml.jackson.annotation.JsonBackReference
+    private Set<LobbyEntity> lobbies = new HashSet<>();
+    
     @PrePersist
     @SuppressWarnings("unused")
     void onCreate() {

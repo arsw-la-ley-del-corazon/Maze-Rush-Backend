@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserServiceImpl implements UserService {
+    private static final String USER_NOT_FOUND = "Usuario no encontrado: ";
+
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -29,14 +31,14 @@ public class UserServiceImpl implements UserService {
     public List<UserResponseDTO> findAllUsers() {
         return userRepository.findAll().stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public UserResponseDTO findUserByUsername(String username) {
         UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
-            .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + username));
+            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
         return toResponse(entity);
     }
 
@@ -75,7 +77,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponseDTO updateUser(String username, UserRequestDTO user) {
         UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
-            .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + username));
+            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
 
         // Actualización parcial: username/email si cambian y no colisionan
         if (user.getUsername() != null && !user.getUsername().isBlank() &&
@@ -108,7 +110,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void deleteUser(String username) {
         UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
-            .orElseThrow(() -> new NotFoundException("Usuario no encontrado: " + username));
+            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
         userRepository.delete(entity);
     }
 

@@ -13,8 +13,7 @@ public class AuthResponseDTO {
     
     @Schema(
         description = "Token de acceso JWT", 
-        example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        required = true
+        example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     )
     private String accessToken;
 
