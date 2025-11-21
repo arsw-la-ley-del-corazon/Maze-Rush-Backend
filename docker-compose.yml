@@ -1,6 +1,9 @@
 version: '3.8'
 
 services:
+
+  # BASE DE DATOS PRINCIPAL DEL JUEGO 
+
   postgres:
     image: postgres:15
     container_name: maze_rush_postgres
@@ -15,9 +18,54 @@ services:
     networks:
       - maze_rush_network
 
+
+  # BASE DE DATOS PARA SONARQUBE
+
+  sonar-db:
+    image: postgres:15
+    container_name: sonar_postgres
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar_db:/var/lib/postgresql/data
+    networks:
+      - maze_rush_network
+
+
+  # SONARQUBE
+
+  sonarqube:
+    image: sonarqube:lts
+    container_name: sonarqube
+    depends_on:
+      - sonar-db
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_extensions:/opt/sonarqube/extensions
+      - sonar_logs:/opt/sonarqube/logs
+    networks:
+      - maze_rush_network
+
+
+# NETWORKS
+
 networks:
   maze_rush_network:
     driver: bridge
 
+# VOLUMES
+
 volumes:
   postgres_data:
+  sonar_db:
+  sonar_data:
+  sonar_extensions:
+  sonar_logs:

@@ -8,12 +8,13 @@ import org.arsw.maze_rush.powerups.service.PowerUpService;
 import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.util.*;
 
 @Service
 public class PowerUpServiceImpl implements PowerUpService {
 
-    private final Random random = new Random();
+    private final  SecureRandom random = new  SecureRandom();
 
     @Override
     public List<PowerUp> generatePowerUps(MazeEntity maze, List<PlayerPosition> players) {
@@ -43,10 +44,11 @@ public class PowerUpServiceImpl implements PowerUpService {
 
             validatePosition(x, y, w, h);
 
-            if (!isFree(layout, x, y)) continue;
-
             String key = x + "," + y;
-            if (used.contains(key)) continue;
+
+            boolean invalidCell = !isFree(layout, x, y) || used.contains(key);
+
+            if (invalidCell) continue;
 
             used.add(key);
 
