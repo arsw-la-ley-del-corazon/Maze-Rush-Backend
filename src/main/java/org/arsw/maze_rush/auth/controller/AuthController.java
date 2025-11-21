@@ -10,10 +10,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.arsw.maze_rush.auth.dto.AuthResponseDTO;
 import org.arsw.maze_rush.auth.dto.LoginRequestDTO;
+import org.arsw.maze_rush.auth.dto.OAuth2LoginRequestDTO;
 import org.arsw.maze_rush.auth.dto.RefreshTokenRequestDTO;
 import org.arsw.maze_rush.auth.service.AuthService;
+import org.arsw.maze_rush.auth.service.OAuth2Service;
+import org.arsw.maze_rush.auth.util.CookieUtil;
 import org.arsw.maze_rush.common.ApiError;
 import org.arsw.maze_rush.users.dto.UserRequestDTO;
+import org.arsw.maze_rush.users.entities.UserEntity;
+import org.arsw.maze_rush.users.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,23 +26,33 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 @Validated
-@Tag(name = "Autenticación", description = "Endpoints para autenticación y gestión de tokens JWT")
+@Tag(name = "Autenticación", description = "Endpoints para autenticación y gestión de tokens JWT mediante cookies")
 public class AuthController {
 
     private final AuthService authService;
+    private final OAuth2Service oauth2Service;
+    private final CookieUtil cookieUtil;
+    private final UserRepository userRepository;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, OAuth2Service oauth2Service, 
+                         CookieUtil cookieUtil, UserRepository userRepository) {
         this.authService = authService;
+        this.oauth2Service = oauth2Service;
+        this.cookieUtil = cookieUtil;
+        this.userRepository = userRepository;
     }
 
     @Operation(
         summary = "Registrar nuevo usuario",
-        description = "Crea un nuevo usuario en el sistema y retorna tokens de acceso"
+        description = "Crea un nuevo usuario en el sistema y establece cookies con tokens de acceso"
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -68,15 +83,26 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<AuthResponseDTO> register(
         @Parameter(description = "Datos del usuario a registrar", required = true)
-        @Valid @RequestBody UserRequestDTO request
+        @Valid @RequestBody UserRequestDTO request,
+        HttpServletResponse response
     ) {
-        AuthResponseDTO response = authService.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        AuthResponseDTO authResponse = authService.register(request);
+        
+        // Establecer cookies con los tokens
+        cookieUtil.setAuthCookies(
+            response,
+            authResponse.getAccessToken(),
+            authResponse.getRefreshToken(),
+            authResponse.getExpiresIn().intValue(),
+            86400 // 24 horas para refresh token
+        );
+        
+        return ResponseEntity.status(HttpStatus.CREATED).body(authResponse);
     }
 
     @Operation(
         summary = "Iniciar sesión",
-        description = "Autentica un usuario con email/username y contraseña"
+        description = "Autentica un usuario con email/username y contraseña y establece cookies con tokens"
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -107,14 +133,76 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponseDTO> login(
         @Parameter(description = "Credenciales de acceso (email o username)", required = true)
-        @Valid @RequestBody LoginRequestDTO request
+        @Valid @RequestBody LoginRequestDTO request,
+        HttpServletResponse response
     ) {
-        return ResponseEntity.ok(authService.login(request));
+        AuthResponseDTO authResponse = authService.login(request);
+        
+        // Establecer cookies con los tokens
+        cookieUtil.setAuthCookies(
+            response,
+            authResponse.getAccessToken(),
+            authResponse.getRefreshToken(),
+            authResponse.getExpiresIn().intValue(),
+            86400 // 24 horas para refresh token
+        );
+        
+        return ResponseEntity.ok(authResponse);
+    }
+
+    @Operation(
+        summary = "Autenticar con Google",
+        description = "Autentica un usuario usando un token de ID de Google y establece cookies"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Autenticación exitosa",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = AuthResponseDTO.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400", 
+            description = "Token de Google inválido",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ApiError.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401", 
+            description = "Token no verificado o inválido",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ApiError.class)
+            )
+        )
+    })
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponseDTO> authenticateWithGoogle(
+        @Parameter(description = "Token de ID de Google", required = true)
+        @Valid @RequestBody OAuth2LoginRequestDTO request,
+        HttpServletResponse response
+    ) {
+        AuthResponseDTO authResponse = oauth2Service.authenticateWithGoogle(request);
+        
+        // Establecer cookies con los tokens
+        cookieUtil.setAuthCookies(
+            response,
+            authResponse.getAccessToken(),
+            authResponse.getRefreshToken(),
+            authResponse.getExpiresIn().intValue(),
+            86400 // 24 horas para refresh token
+        );
+        
+        return ResponseEntity.ok(authResponse);
     }
 
     @Operation(
         summary = "Renovar token de acceso",
-        description = "Genera un nuevo token de acceso usando el refresh token"
+        description = "Genera un nuevo token de acceso usando el refresh token desde cookies"
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -144,15 +232,33 @@ public class AuthController {
     })
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponseDTO> refreshToken(
-        @Parameter(description = "Token de refresco", required = true)
-        @Valid @RequestBody RefreshTokenRequestDTO request
+        HttpServletRequest request,
+        HttpServletResponse response
     ) {
-        return ResponseEntity.ok(authService.refreshToken(request));
+        // Intentar obtener el refresh token desde cookies
+        String refreshToken = cookieUtil.getCookieValue(request, CookieUtil.REFRESH_TOKEN_COOKIE)
+                .orElse(null);
+        
+        RefreshTokenRequestDTO refreshRequest = new RefreshTokenRequestDTO();
+        refreshRequest.setRefreshToken(refreshToken);
+        
+        AuthResponseDTO authResponse = authService.refreshToken(refreshRequest);
+        
+        // Actualizar cookies con los nuevos tokens
+        cookieUtil.setAuthCookies(
+            response,
+            authResponse.getAccessToken(),
+            authResponse.getRefreshToken(),
+            authResponse.getExpiresIn().intValue(),
+            86400 // 24 horas para refresh token
+        );
+        
+        return ResponseEntity.ok(authResponse);
     }
 
     @Operation(
         summary = "Cerrar sesión",
-        description = "Invalida el token de acceso actual (logout)"
+        description = "Invalida el token de acceso actual y elimina las cookies de autenticación"
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -170,19 +276,32 @@ public class AuthController {
     })
     @SecurityRequirement(name = "Bearer Authentication")
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        // Intentar obtener el token desde cookies o header
+        String token = cookieUtil.getCookieValue(request, CookieUtil.ACCESS_TOKEN_COOKIE)
+                .orElse(null);
+        
+        if (token == null) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+        }
+        
+        if (token != null) {
             authService.logout(token);
         }
+        
+        // Eliminar cookies de autenticación
+        cookieUtil.deleteAuthCookies(response);
         SecurityContextHolder.clearContext();
+        
         return ResponseEntity.noContent().build();
     }
 
     @Operation(
         summary = "Validar token",
-        description = "Valida si un token JWT es válido y activo"
+        description = "Valida si un token JWT desde cookies es válido y activo"
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -194,15 +313,72 @@ public class AuthController {
             )
         )
     })
-    @SecurityRequirement(name = "Bearer Authentication")
     @GetMapping("/validate")
     public ResponseEntity<Boolean> validateToken(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        // Intentar obtener el token desde cookies o header
+        String token = cookieUtil.getCookieValue(request, CookieUtil.ACCESS_TOKEN_COOKIE)
+                .orElse(null);
+        
+        if (token == null) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+        }
+        
+        if (token != null) {
             boolean isValid = authService.validateToken(token);
             return ResponseEntity.ok(isValid);
         }
+        
         return ResponseEntity.ok(false);
+    }
+
+    @Operation(
+        summary = "Obtener usuario actual",
+        description = "Obtiene la información del usuario autenticado desde el token en cookies"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Usuario obtenido exitosamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = AuthResponseDTO.UserInfo.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401", 
+            description = "No autenticado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ApiError.class)
+            )
+        )
+    })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @GetMapping("/me")
+    public ResponseEntity<AuthResponseDTO.UserInfo> getCurrentUser() {
+        // Obtener el username del contexto de seguridad
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        
+        // Buscar el usuario completo en la base de datos
+        Optional<UserEntity> userOpt = userRepository.findByUsernameIgnoreCase(username);
+        
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        UserEntity user = userOpt.get();
+        
+        // Construir la respuesta con información completa
+        AuthResponseDTO.UserInfo userInfo = new AuthResponseDTO.UserInfo();
+        userInfo.setId(user.getId().toString());
+        userInfo.setUsername(user.getUsername());
+        userInfo.setEmail(user.getEmail());
+        userInfo.setScore(user.getScore());
+        userInfo.setLevel(user.getLevel());
+        
+        return ResponseEntity.ok(userInfo);
     }
 }

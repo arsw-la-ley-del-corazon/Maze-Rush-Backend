@@ -2,6 +2,7 @@ package org.arsw.maze_rush.users.repository;
 
 import java.util.UUID;
 
+import org.arsw.maze_rush.users.entities.AuthProvider;
 import org.arsw.maze_rush.users.entities.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -13,4 +14,9 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 	Optional<UserEntity> findByEmailIgnoreCase(String email);
 	boolean existsByUsernameIgnoreCase(String username);
 	boolean existsByEmailIgnoreCase(String email);
+	
+	// Métodos para OAuth2
+	Optional<UserEntity> findByEmailIgnoreCaseAndAuthProvider(String email, AuthProvider authProvider);
+	Optional<UserEntity> findByProviderIdAndAuthProvider(String providerId, AuthProvider authProvider);
+	boolean existsByProviderIdAndAuthProvider(String providerId, AuthProvider authProvider);
 }
