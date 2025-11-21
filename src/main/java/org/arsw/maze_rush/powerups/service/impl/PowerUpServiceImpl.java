@@ -1,6 +1,7 @@
 package org.arsw.maze_rush.powerups.service.impl;
 
 import org.arsw.maze_rush.common.exceptions.InvalidMazeLayoutException;
+import org.arsw.maze_rush.game.logic.entities.PlayerPosition;
 import org.arsw.maze_rush.powerups.entities.PowerUp;
 import org.arsw.maze_rush.powerups.entities.PowerUpType;
 import org.arsw.maze_rush.powerups.service.PowerUpService;
@@ -15,7 +16,7 @@ public class PowerUpServiceImpl implements PowerUpService {
     private final Random random = new Random();
 
     @Override
-    public List<PowerUp> generatePowerUps(MazeEntity maze) {
+    public List<PowerUp> generatePowerUps(MazeEntity maze, List<PlayerPosition> players) {
 
         validateLayoutNotEmpty(maze);
 
@@ -27,6 +28,13 @@ public class PowerUpServiceImpl implements PowerUpService {
         int h = maze.getHeight();
 
         String[][] layout = parseMatrix(maze.getLayout(), w, h);
+        used.add(maze.getStartX() + "," + maze.getStartY());
+        used.add(maze.getGoalX() + "," + maze.getGoalY());
+        if (players != null) {
+            for (PlayerPosition p : players) {
+                used.add(p.getX() + "," + p.getY());
+            }
+        }
 
         while (powerUps.size() < count) {
 
@@ -118,4 +126,9 @@ public class PowerUpServiceImpl implements PowerUpService {
 
         return matrix;
     }
+    @Override
+    public List<PowerUp> generatePowerUps(MazeEntity maze) {
+        return generatePowerUps(maze, null);
+    }
+
 }

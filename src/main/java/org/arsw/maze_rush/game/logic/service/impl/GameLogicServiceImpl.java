@@ -7,6 +7,7 @@ import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.entities.GameEntity;
 import org.arsw.maze_rush.game.repository.GameRepository;
 import org.arsw.maze_rush.maze.entities.MazeEntity;
+import org.arsw.maze_rush.powerups.service.PowerUpService;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -14,13 +15,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class GameLogicServiceImpl implements GameLogicService {
-    
-
+    private final PowerUpService powerUpService;
     private final GameRepository gameRepository;
     private final Map<UUID, GameState> activeGames = new ConcurrentHashMap<>();
 
-    public GameLogicServiceImpl(GameRepository gameRepository) {
+    public GameLogicServiceImpl(GameRepository gameRepository, PowerUpService powerUpService) {
         this.gameRepository = gameRepository;
+        this.powerUpService = powerUpService;
     }
 
     @Override
@@ -42,11 +43,13 @@ public class GameLogicServiceImpl implements GameLogicService {
         for (var player : game.getPlayers()) {
             positions.add(new PlayerPosition(player, startX, startY, 0));
         }
+        var powerUps = powerUpService.generatePowerUps(maze, positions);
 
         GameState state = new GameState();
         state.setGameId(gameId);
         state.setStatus("EN_CURSO");
         state.setPlayerPositions(positions);
+        state.setPowerUps(powerUps); 
 
         activeGames.put(gameId, state);
         
@@ -91,7 +94,7 @@ public class GameLogicServiceImpl implements GameLogicService {
 
         // Validar colisión con pared
         char destination = rows[newY].charAt(newX);
-        if (destination == '#') {
+        if (destination == '1') {
             throw new IllegalStateException("Movimiento bloqueado por una pared");
         }
 
