@@ -1,16 +1,20 @@
 package org.arsw.maze_rush.lobby.service.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.common.exceptions.LobbyFullException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
 import org.arsw.maze_rush.lobby.dto.LobbyCacheDTO;
+import org.arsw.maze_rush.lobby.dto.PlayerEventDTO;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.repository.LobbyRepository;
+import org.arsw.maze_rush.lobby.repository.LobbyPlayerRepository;
 import org.arsw.maze_rush.lobby.service.LobbyService;
 import org.arsw.maze_rush.users.entities.UserEntity;
 import org.arsw.maze_rush.users.repository.UserRepository;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.redis.core.RedisTemplate;
 
 import java.security.SecureRandom;
 import java.util.List;
@@ -20,6 +24,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@Slf4j
 public class LobbyServiceImpl implements LobbyService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -29,14 +34,20 @@ public class LobbyServiceImpl implements LobbyService {
 
     private final UserRepository userRepository;
     private final LobbyRepository lobbyRepository;
+    private final LobbyPlayerRepository lobbyPlayerRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public LobbyServiceImpl(LobbyRepository lobbyRepository,
                             UserRepository userRepository,
-                            RedisTemplate<String, Object> redisTemplate) {
+                            LobbyPlayerRepository lobbyPlayerRepository,
+                            RedisTemplate<String, Object> redisTemplate,
+                            SimpMessagingTemplate messagingTemplate) {
         this.lobbyRepository = lobbyRepository;
         this.userRepository = userRepository;
+        this.lobbyPlayerRepository = lobbyPlayerRepository;
         this.redisTemplate = redisTemplate;
+        this.messagingTemplate = messagingTemplate;
     }
 
 
@@ -66,12 +77,7 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setPublic(cache.isPublic());
         lobby.setStatus(cache.getStatus());
         lobby.setCreatorUsername(cache.getCreatorUsername());
-        lobby.setPlayers(
-                cache.getPlayers().stream()
-                        .map(username -> userRepository.findByUsernameIgnoreCase(username).orElse(null))
-                        .filter(u -> u != null)
-                        .collect(Collectors.toSet())
-        );
+        // Los jugadores se cargarán desde la base de datos cuando sea necesario
         return lobby;
     }
 
@@ -122,10 +128,12 @@ public class LobbyServiceImpl implements LobbyService {
         UserEntity creator = userRepository.findByUsernameIgnoreCase(creatorUsername)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario creador no encontrado: " + creatorUsername));
 
-        lobby.addPlayer(creator);
-        creator.getLobbies().add(lobby);
-
         LobbyEntity savedLobby = lobbyRepository.save(lobby);
+        
+        // Agregar el creador como jugador usando LobbyPlayerEntity
+        lobby.addPlayer(creator);
+        lobbyRepository.save(savedLobby);
+
         saveToRedis(savedLobby);
 
         return savedLobby;
@@ -161,7 +169,7 @@ public class LobbyServiceImpl implements LobbyService {
         UserEntity user = userRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
 
-        if (lobby.getPlayers().contains(user)) {
+        if (lobbyPlayerRepository.existsByLobbyAndUser(lobby, user)) {
             throw new IllegalStateException("El jugador ya está en este lobby");
         }
 
@@ -172,6 +180,9 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.addPlayer(user);
         LobbyEntity updatedLobby = lobbyRepository.save(lobby);
         saveToRedis(updatedLobby);
+
+        // Enviar evento de jugador unido
+        sendPlayerEvent(code, username, "joined", updatedLobby);
 
         return updatedLobby;
     }
@@ -185,7 +196,7 @@ public class LobbyServiceImpl implements LobbyService {
         UserEntity user = userRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND + username));
 
-        if (!lobby.getPlayers().contains(user)) {
+        if (!lobbyPlayerRepository.existsByLobbyAndUser(lobby, user)) {
             throw new IllegalStateException("El jugador no pertenece a este lobby");
         }
 
@@ -197,6 +208,9 @@ public class LobbyServiceImpl implements LobbyService {
 
         LobbyEntity updatedLobby = lobbyRepository.save(lobby);
         saveToRedis(updatedLobby);
+
+        // Enviar evento de jugador salido
+        sendPlayerEvent(code, username, "left", updatedLobby);
     }
 
     @Override
@@ -264,5 +278,28 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setStatus("EN_CURSO");
         LobbyEntity updatedLobby = lobbyRepository.save(lobby);
         saveToRedis(updatedLobby);
+    }
+
+    /**
+     * Envía un evento WebSocket cuando un jugador se une o sale del lobby
+     */
+    private void sendPlayerEvent(String code, String username, String action, LobbyEntity lobby) {
+        try {
+            List<String> playerUsernames = lobby.getPlayers().stream()
+                    .map(UserEntity::getUsername)
+                    .collect(Collectors.toList());
+
+            PlayerEventDTO event = new PlayerEventDTO();
+            event.setUsername(username);
+            event.setAction(action);
+            event.setPlayers(playerUsernames);
+            event.setPlayerCount(playerUsernames.size());
+            event.setMaxPlayers(lobby.getMaxPlayers());
+
+            messagingTemplate.convertAndSend("/topic/lobby/" + code + "/players", event);
+        } catch (Exception e) {
+            // Log error pero no fallar la operación principal
+            log.error("Error al enviar evento de jugador para lobby {}: {}", code, e.getMessage());
+        }
     }
 }

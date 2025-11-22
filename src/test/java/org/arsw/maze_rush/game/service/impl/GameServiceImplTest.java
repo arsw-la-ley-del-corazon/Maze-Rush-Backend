@@ -49,7 +49,8 @@ class GameServiceImplTest {
         UserEntity u2 = new UserEntity();
         u2.setUsername("user2");
 
-        lobby.setPlayers(new HashSet<>(List.of(u1, u2)));
+        lobby.addPlayer(u1);
+        lobby.addPlayer(u2);
 
         lobby.setMazeSize("MEDIUM");
 
@@ -81,7 +82,7 @@ class GameServiceImplTest {
         LobbyEntity lobby = new LobbyEntity();
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
-        lobby.setPlayers(Set.of(u1));
+        lobby.addPlayer(u1);
 
         when(lobbyRepository.findByCode("ABC")).thenReturn(Optional.of(lobby));
         assertThrows(IllegalStateException.class, () -> service.startGame("ABC"));
@@ -94,7 +95,8 @@ class GameServiceImplTest {
         u1.setUsername("user1");
         UserEntity u2 = new UserEntity();
         u2.setUsername("user2");
-        lobby.setPlayers(Set.of(u1,u2));
+        lobby.addPlayer(u1);
+        lobby.addPlayer(u2);
 
         GameEntity existing = GameEntity.builder().status("EN_CURSO").build();
 
@@ -114,7 +116,8 @@ class GameServiceImplTest {
         UserEntity u2 = new UserEntity();
         u2.setUsername("user2");
 
-        lobby.setPlayers(Set.of(u1, u2));
+        lobby.addPlayer(u1);
+        lobby.addPlayer(u2);
         lobby.setMaze(null);
 
         MazeEntity generatedMaze = new MazeEntity();
