@@ -206,7 +206,8 @@ public class LobbyController {
         dto.setCode(lobby.getCode());
         dto.setMazeSize(lobby.getMazeSize());
         dto.setMaxPlayers(lobby.getMaxPlayers());
-        dto.setPublic(lobby.isPublic());
+        dto.setCurrentPlayers(lobby.getPlayers().size());  // Número actual de jugadores
+        dto.setPublic(lobby.isPublic());  // Lombok genera isPublic() para boolean, y setPublic() en el DTO
         dto.setStatus(lobby.getStatus());
         dto.setCreatorUsername(lobby.getCreatorUsername());
         dto.setCreatedAt(lobby.getCreatedAt().toString());

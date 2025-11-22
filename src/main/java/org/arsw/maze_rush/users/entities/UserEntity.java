@@ -46,6 +46,15 @@ public class UserEntity {
     @Column(name = "level", nullable = false)
     private int level = 1;
 
+    @Column(name = "bio", length = 200)
+    private String bio;
+
+    @Column(name = "avatar_color", length = 7)
+    private String avatarColor = "#A46AFF";
+
+    @Column(name = "preferred_maze_size", length = 20)
+    private String preferredMazeSize = "Mediano";
+
     // Campos para OAuth2
     @Enumerated(EnumType.STRING)
     @Column(name = "auth_provider", nullable = false, length = 20)

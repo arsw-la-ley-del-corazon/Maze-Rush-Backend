@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.arsw.maze_rush.common.exceptions.ConflictException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
+import org.arsw.maze_rush.users.dto.UpdateProfileRequestDTO;
 import org.arsw.maze_rush.users.dto.UserRequestDTO;
 import org.arsw.maze_rush.users.dto.UserResponseDTO;
 import org.arsw.maze_rush.users.entities.UserEntity;
@@ -114,6 +115,53 @@ public class UserServiceImpl implements UserService {
         userRepository.delete(entity);
     }
 
+    @Override
+    @Transactional
+    public UserResponseDTO updateProfile(String username, UpdateProfileRequestDTO profileData) {
+        UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
+            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+
+        // Actualizar username si se proporcionó
+        if (profileData.getUsername() != null && !profileData.getUsername().isBlank()) {
+            String newUsername = profileData.getUsername().trim();
+            if (!entity.getUsername().equalsIgnoreCase(newUsername)) {
+                if (userRepository.existsByUsernameIgnoreCase(newUsername)) {
+                    throw new ConflictException("El username ya está en uso");
+                }
+                entity.setUsername(newUsername);
+            }
+        }
+
+        // Actualizar email si se proporcionó
+        if (profileData.getEmail() != null && !profileData.getEmail().isBlank()) {
+            String newEmail = profileData.getEmail().trim().toLowerCase();
+            if (!entity.getEmail().equalsIgnoreCase(newEmail)) {
+                if (userRepository.existsByEmailIgnoreCase(newEmail)) {
+                    throw new ConflictException("El email ya está en uso");
+                }
+                entity.setEmail(newEmail);
+            }
+        }
+
+        // Actualizar bio
+        if (profileData.getBio() != null) {
+            entity.setBio(profileData.getBio().trim());
+        }
+
+        // Actualizar avatarColor
+        if (profileData.getAvatarColor() != null && !profileData.getAvatarColor().isBlank()) {
+            entity.setAvatarColor(profileData.getAvatarColor().trim());
+        }
+
+        // Actualizar preferredMazeSize
+        if (profileData.getPreferredMazeSize() != null && !profileData.getPreferredMazeSize().isBlank()) {
+            entity.setPreferredMazeSize(profileData.getPreferredMazeSize().trim());
+        }
+
+        entity = userRepository.save(entity);
+        return toResponse(entity);
+    }
+
     private UserResponseDTO toResponse(UserEntity entity) {
         UserResponseDTO dto = new UserResponseDTO();
         dto.setId(entity.getId() != null ? entity.getId().toString() : null);
@@ -121,6 +169,9 @@ public class UserServiceImpl implements UserService {
         dto.setEmail(entity.getEmail());
         dto.setScore(entity.getScore());
         dto.setLevel(entity.getLevel());
+        dto.setBio(entity.getBio());
+        dto.setAvatarColor(entity.getAvatarColor());
+        dto.setPreferredMazeSize(entity.getPreferredMazeSize());
         return dto;
     }
 }

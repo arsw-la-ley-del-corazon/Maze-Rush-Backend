@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.common.exceptions.LobbyFullException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
 import org.arsw.maze_rush.lobby.dto.LobbyCacheDTO;
+import org.arsw.maze_rush.lobby.dto.LobbyUpdateEventDTO;
 import org.arsw.maze_rush.lobby.dto.PlayerEventDTO;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.repository.LobbyRepository;
@@ -98,6 +99,10 @@ public class LobbyServiceImpl implements LobbyService {
         );
     }
 
+    private void deleteFromRedis(String code) {
+        redisTemplate.delete(REDIS_LOBBY_PREFIX + code);
+    }
+
     private String generateCode() {
         final String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         StringBuilder code = new StringBuilder();
@@ -143,6 +148,9 @@ public class LobbyServiceImpl implements LobbyService {
         lobbyRepository.save(savedLobby);
 
         saveToRedis(savedLobby);
+        
+        // Notificar creación de sala pública
+        sendGlobalLobbyUpdate(savedLobby, "created");
 
         return savedLobby;
     }
@@ -191,6 +199,11 @@ public class LobbyServiceImpl implements LobbyService {
 
         // Enviar evento de jugador unido
         sendPlayerEvent(code, username, "joined", updatedLobby);
+        
+        // Enviar actualización global si el lobby es público
+        if (updatedLobby.isPublic()) {
+            sendGlobalLobbyUpdate(updatedLobby, "updated");
+        }
 
         return updatedLobby;
     }
@@ -212,8 +225,22 @@ public class LobbyServiceImpl implements LobbyService {
 
         lobby.removePlayer(user);
 
+        // Si el lobby quedó vacío, eliminarlo directamente
         if (lobby.getPlayers().isEmpty()) {
-            lobby.setStatus("ABANDONADO");
+            log.info("Lobby {} quedó vacío, eliminándolo...", code);
+            
+            // Notificar eliminación global si era público
+            if (lobby.isPublic()) {
+                sendGlobalLobbyUpdate(lobby, "deleted");
+            }
+            
+            lobbyRepository.delete(lobby);
+            deleteFromRedis(code);
+            
+            // Enviar evento de lobby eliminado
+            messagingTemplate.convertAndSend("/topic/lobby/" + code, 
+                Map.of("type", "lobby_deleted", "code", code));
+            return;
         }
 
         LobbyEntity updatedLobby = lobbyRepository.save(lobby);
@@ -233,7 +260,15 @@ public class LobbyServiceImpl implements LobbyService {
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado con ID: " + userId));
 
         lobby.removePlayer(user);
-        lobbyRepository.save(lobby);
+        
+        // Si el lobby quedó vacío, eliminarlo
+        if (lobby.getPlayers().isEmpty()) {
+            lobbyRepository.delete(lobby);
+            deleteFromRedis(lobby.getCode());
+        } else {
+            lobbyRepository.save(lobby);
+            saveToRedis(lobby);
+        }
     }
     
     @Override
@@ -366,6 +401,31 @@ public class LobbyServiceImpl implements LobbyService {
         } catch (Exception e) {
             // Log error pero no fallar la operación principal
             log.error("Error al enviar evento de jugador para lobby {}: {}", code, e.getMessage());
+        }
+    }
+    
+    /**
+     * Envía una actualización global de un lobby público a /topic/lobby/updates
+     * Solo se envía para lobbies públicos en espera
+     */
+    private void sendGlobalLobbyUpdate(LobbyEntity lobby, String action) {
+        try {
+            // Solo enviar si el lobby es público y está en espera
+            if (!lobby.isPublic() || !"EN_ESPERA".equals(lobby.getStatus())) {
+                return;
+            }
+            
+            LobbyUpdateEventDTO update = new LobbyUpdateEventDTO();
+            update.setCode(lobby.getCode());
+            update.setPlayerCount(lobby.getPlayers().size());
+            update.setStatus(lobby.getStatus());
+            update.setAction(action);
+            
+            messagingTemplate.convertAndSend("/topic/lobby/updates", update);
+            log.info("Actualización global enviada para lobby público {}: action={}, players={}", 
+                    lobby.getCode(), action, lobby.getPlayers().size());
+        } catch (Exception e) {
+            log.error("Error al enviar actualización global para lobby {}: {}", lobby.getCode(), e.getMessage());
         }
     }
 }
