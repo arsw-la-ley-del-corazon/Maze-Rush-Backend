@@ -40,7 +40,15 @@ public class LobbyWebSocketController {
             Principal principal) {
         
         String message = payload.get("message");
-        String username = principal.getName();
+        // Intentar obtener username del payload primero, luego del principal
+        String username = payload.get("username");
+        if (username == null && principal != null) {
+            username = principal.getName();
+        }
+        
+        if (username == null) {
+            throw new IllegalArgumentException("Username no proporcionado");
+        }
         
         log.debug("Mensaje de chat en lobby {}: {} - {}", code, username, message);
         
@@ -58,9 +66,19 @@ public class LobbyWebSocketController {
     @MessageMapping("/lobby/{code}/ready")
     public void toggleReady(
             @DestinationVariable String code,
+            @Payload Map<String, String> payload,
             Principal principal) {
         
-        String username = principal.getName();
+        // Intentar obtener username del payload primero, luego del principal
+        String username = payload.get("username");
+        if (username == null && principal != null) {
+            username = principal.getName();
+        }
+        
+        if (username == null) {
+            throw new IllegalArgumentException("Username no proporcionado");
+        }
+        
         log.info("Toggling ready para {} en lobby {}", username, code);
         
         lobbyService.toggleReady(code, username);
@@ -74,9 +92,19 @@ public class LobbyWebSocketController {
     @MessageMapping("/lobby/{code}/start")
     public void startGame(
             @DestinationVariable String code,
+            @Payload Map<String, String> payload,
             Principal principal) {
         
-        String username = principal.getName();
+        // Intentar obtener username del payload primero, luego del principal
+        String username = payload.get("username");
+        if (username == null && principal != null) {
+            username = principal.getName();
+        }
+        
+        if (username == null) {
+            throw new IllegalArgumentException("Username no proporcionado");
+        }
+        
         log.info("Iniciando juego en lobby {} por {}", code, username);
         
         lobbyService.startGame(code, username);
@@ -88,10 +116,21 @@ public class LobbyWebSocketController {
     @MessageMapping("/lobby/{code}/connect")
     public void handleConnect(
             @DestinationVariable String code,
+            @Payload Map<String, String> payload,
             Principal principal,
             SimpMessageHeaderAccessor headerAccessor) {
         
-        String username = principal.getName();
+        // Intentar obtener username del payload primero, luego del principal
+        String username = payload.get("username");
+        if (username == null && principal != null) {
+            username = principal.getName();
+        }
+        
+        if (username == null) {
+            log.warn("No se pudo obtener username para conexión al lobby {}", code);
+            return;
+        }
+        
         log.info("Usuario {} conectado a WebSocket del lobby {}", username, code);
         
         // Guardar información en la sesión WebSocket
