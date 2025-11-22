@@ -64,7 +64,8 @@ public class LobbyWebSocketController {
      * Respuesta broadcast a: /topic/lobby/{code}/ready
      */
     @MessageMapping("/lobby/{code}/ready")
-    public void toggleReady(
+    @SendTo("/topic/lobby/{code}/ready")
+    public Map<String, Object> toggleReady(
             @DestinationVariable String code,
             @Payload Map<String, String> payload,
             Principal principal) {
@@ -81,7 +82,13 @@ public class LobbyWebSocketController {
         
         log.info("Toggling ready para {} en lobby {}", username, code);
         
-        lobbyService.toggleReady(code, username);
+        boolean isReady = lobbyService.toggleReady(code, username);
+        
+        // Retornar el estado actualizado para broadcast
+        return Map.of(
+            "username", username,
+            "isReady", isReady
+        );
     }
 
     /**
@@ -136,5 +143,8 @@ public class LobbyWebSocketController {
         // Guardar información en la sesión WebSocket
         headerAccessor.getSessionAttributes().put("username", username);
         headerAccessor.getSessionAttributes().put("lobbyCode", code);
+        
+        // Notificar a todos los clientes conectados la lista actualizada de jugadores
+        lobbyService.notifyPlayersUpdate(code);
     }
 }

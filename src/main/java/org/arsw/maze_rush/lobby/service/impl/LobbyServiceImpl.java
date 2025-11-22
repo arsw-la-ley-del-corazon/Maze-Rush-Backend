@@ -194,10 +194,12 @@ public class LobbyServiceImpl implements LobbyService {
                 .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
 
         UserEntity user = userRepository.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND + username));
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
 
+        // Verificar si el jugador está en el lobby antes de intentar removerlo
         if (!lobbyPlayerRepository.existsByLobbyAndUser(lobby, user)) {
-            throw new IllegalStateException("El jugador no pertenece a este lobby");
+            log.warn("El jugador {} no pertenece al lobby {}, ignorando operación", username, code);
+            return; // No lanzar excepción, simplemente retornar
         }
 
         lobby.removePlayer(user);
@@ -244,7 +246,7 @@ public class LobbyServiceImpl implements LobbyService {
     }
     
     @Override
-    public void toggleReady(String code, String username) {
+    public boolean toggleReady(String code, String username) {
         LobbyEntity lobby = lobbyRepository.findByCode(code)
                 .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
         
@@ -255,8 +257,16 @@ public class LobbyServiceImpl implements LobbyService {
             throw new IllegalStateException("El jugador no pertenece a este lobby");
         }
         
-        // Aquí puedes implementar la lógica para cambiar el estado "ready" del jugador
-        // Por ejemplo, guardarlo en Redis o en la base de datos
+        // Almacenar estado "ready" en Redis
+        String redisKey = REDIS_LOBBY_PREFIX + code + ":ready:" + username;
+        Boolean currentState = (Boolean) redisTemplate.opsForValue().get(redisKey);
+        boolean newState = currentState == null || !currentState;
+        
+        redisTemplate.opsForValue().set(redisKey, newState, 1, TimeUnit.HOURS);
+        
+        log.info("{} cambió su estado a: {}", username, newState ? "Listo" : "No listo");
+        
+        return newState;
     }
     
     @Override
@@ -278,6 +288,30 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setStatus("EN_CURSO");
         LobbyEntity updatedLobby = lobbyRepository.save(lobby);
         saveToRedis(updatedLobby);
+    }
+
+    @Override
+    public void notifyPlayersUpdate(String code) {
+        try {
+            LobbyEntity lobby = lobbyRepository.findByCode(code)
+                    .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
+
+            List<String> playerUsernames = lobby.getPlayers().stream()
+                    .map(UserEntity::getUsername)
+                    .collect(Collectors.toList());
+
+            PlayerEventDTO event = new PlayerEventDTO();
+            event.setUsername("system");
+            event.setAction("update");
+            event.setPlayers(playerUsernames);
+            event.setPlayerCount(playerUsernames.size());
+            event.setMaxPlayers(lobby.getMaxPlayers());
+
+            messagingTemplate.convertAndSend("/topic/lobby/" + code + "/players", event);
+            log.info("Notificación de actualización de jugadores enviada para lobby {}", code);
+        } catch (Exception e) {
+            log.error("Error al notificar actualización de jugadores para lobby {}: {}", code, e.getMessage());
+        }
     }
 
     /**
