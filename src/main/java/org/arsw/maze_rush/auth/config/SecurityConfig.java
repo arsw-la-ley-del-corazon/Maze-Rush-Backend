@@ -2,8 +2,10 @@ package org.arsw.maze_rush.auth.config;
 
 import org.arsw.maze_rush.auth.filter.JwtAuthenticationFilter;
 import org.arsw.maze_rush.auth.handler.OAuth2AuthenticationSuccessHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -17,19 +19,20 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@Profile("!test")
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
-    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    
+    @Autowired(required = false)
+    private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter, 
-            CorsConfigurationSource corsConfigurationSource,
-            OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler) {
+            CorsConfigurationSource corsConfigurationSource) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.corsConfigurationSource = corsConfigurationSource;
-        this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
     }
 
     @Bean
@@ -70,12 +73,16 @@ public class SecurityConfig {
                 
                 // Todos los demás endpoints requieren autenticación
                 .anyRequest().authenticated()
-            )
-            // Configurar OAuth2 Login
-            .oauth2Login(oauth2 -> oauth2
-                .successHandler(oAuth2AuthenticationSuccessHandler)
-            )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            );
+            
+            // Configurar OAuth2 Login solo si el handler está disponible
+            if (oAuth2AuthenticationSuccessHandler != null) {
+                http.oauth2Login(oauth2 -> oauth2
+                    .successHandler(oAuth2AuthenticationSuccessHandler)
+                );
+            }
+            
+            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

@@ -13,7 +13,10 @@ public interface LobbyService {
     void removePlayerFromLobby(UUID lobbyId, UUID userId);
     LobbyEntity joinLobbyByCode(String code, String username);
     void leaveLobby(String code, String username);
-
-
+    
+    // WebSocket methods
+    void sendChatMessage(String code, String username, String message);
+    void toggleReady(String code, String username);
+    void startGame(String code, String username);
 
 }

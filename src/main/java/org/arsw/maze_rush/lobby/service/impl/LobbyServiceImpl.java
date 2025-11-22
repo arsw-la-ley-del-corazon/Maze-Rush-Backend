@@ -211,4 +211,58 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.removePlayer(user);
         lobbyRepository.save(lobby);
     }
+    
+    @Override
+    public void sendChatMessage(String code, String username, String message) {
+        // Validar que el lobby existe
+        LobbyEntity lobby = lobbyRepository.findByCode(code)
+                .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
+        
+        // Validar que el usuario pertenece al lobby
+        UserEntity user = userRepository.findByUsernameIgnoreCase(username)
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+        
+        if (!lobby.getPlayers().contains(user)) {
+            throw new IllegalStateException("El jugador no pertenece a este lobby");
+        }
+        
+        // El mensaje se envía a través del WebSocket, aquí solo validamos
+    }
+    
+    @Override
+    public void toggleReady(String code, String username) {
+        LobbyEntity lobby = lobbyRepository.findByCode(code)
+                .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
+        
+        UserEntity user = userRepository.findByUsernameIgnoreCase(username)
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+        
+        if (!lobby.getPlayers().contains(user)) {
+            throw new IllegalStateException("El jugador no pertenece a este lobby");
+        }
+        
+        // Aquí puedes implementar la lógica para cambiar el estado "ready" del jugador
+        // Por ejemplo, guardarlo en Redis o en la base de datos
+    }
+    
+    @Override
+    public void startGame(String code, String username) {
+        LobbyEntity lobby = lobbyRepository.findByCode(code)
+                .orElseThrow(() -> new NotFoundException(LOBBY_NOT_FOUND + code));
+        
+        // Validar que el usuario es el creador del lobby
+        if (!lobby.getCreatorUsername().equals(username)) {
+            throw new IllegalStateException("Solo el creador del lobby puede iniciar el juego");
+        }
+        
+        // Validar que hay suficientes jugadores
+        if (lobby.getPlayers().size() < 2) {
+            throw new IllegalStateException("Se necesitan al menos 2 jugadores para iniciar el juego");
+        }
+        
+        // Cambiar el estado del lobby a "EN_CURSO"
+        lobby.setStatus("EN_CURSO");
+        LobbyEntity updatedLobby = lobbyRepository.save(lobby);
+        saveToRedis(updatedLobby);
+    }
 }

@@ -74,9 +74,17 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             String email = (String) tokenInfo.get("email");
             String name = (String) tokenInfo.get("name");
             String providerId = (String) tokenInfo.get("sub");
-            Boolean emailVerified = (Boolean) tokenInfo.get("email_verified");
             
-            if (!Boolean.TRUE.equals(emailVerified)) {
+            // email_verified puede venir como String o Boolean, necesitamos manejarlo
+            Object emailVerifiedObj = tokenInfo.get("email_verified");
+            boolean emailVerified = false;
+            if (emailVerifiedObj instanceof Boolean) {
+                emailVerified = (Boolean) emailVerifiedObj;
+            } else if (emailVerifiedObj instanceof String) {
+                emailVerified = "true".equalsIgnoreCase((String) emailVerifiedObj);
+            }
+            
+            if (!emailVerified) {
                 throw new UnauthorizedException("El email no está verificado en Google");
             }
 

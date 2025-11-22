@@ -9,14 +9,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.arsw.maze_rush.auth.dto.AuthResponseDTO;
-import org.arsw.maze_rush.auth.dto.LoginRequestDTO;
 import org.arsw.maze_rush.auth.dto.OAuth2LoginRequestDTO;
 import org.arsw.maze_rush.auth.dto.RefreshTokenRequestDTO;
 import org.arsw.maze_rush.auth.service.AuthService;
 import org.arsw.maze_rush.auth.service.OAuth2Service;
 import org.arsw.maze_rush.auth.util.CookieUtil;
 import org.arsw.maze_rush.common.ApiError;
-import org.arsw.maze_rush.users.dto.UserRequestDTO;
 import org.arsw.maze_rush.users.entities.UserEntity;
 import org.arsw.maze_rush.users.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -34,7 +32,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/v1/auth")
 @Validated
-@Tag(name = "Autenticación", description = "Endpoints para autenticación y gestión de tokens JWT mediante cookies")
+@Tag(name = "Autenticación", description = "Endpoints para autenticación con Google OAuth2 y gestión de tokens JWT mediante cookies")
 public class AuthController {
 
     private final AuthService authService;
@@ -48,106 +46,6 @@ public class AuthController {
         this.oauth2Service = oauth2Service;
         this.cookieUtil = cookieUtil;
         this.userRepository = userRepository;
-    }
-
-    @Operation(
-        summary = "Registrar nuevo usuario",
-        description = "Crea un nuevo usuario en el sistema y establece cookies con tokens de acceso"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "201", 
-            description = "Usuario registrado exitosamente",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = AuthResponseDTO.class)
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400", 
-            description = "Datos de entrada inválidos",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ApiError.class)
-            )
-        ),
-        @ApiResponse(
-            responseCode = "409", 
-            description = "El username o email ya están en uso",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ApiError.class)
-            )
-        )
-    })
-    @PostMapping("/register")
-    public ResponseEntity<AuthResponseDTO> register(
-        @Parameter(description = "Datos del usuario a registrar", required = true)
-        @Valid @RequestBody UserRequestDTO request,
-        HttpServletResponse response
-    ) {
-        AuthResponseDTO authResponse = authService.register(request);
-        
-        // Establecer cookies con los tokens
-        cookieUtil.setAuthCookies(
-            response,
-            authResponse.getAccessToken(),
-            authResponse.getRefreshToken(),
-            authResponse.getExpiresIn().intValue(),
-            86400 // 24 horas para refresh token
-        );
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(authResponse);
-    }
-
-    @Operation(
-        summary = "Iniciar sesión",
-        description = "Autentica un usuario con email/username y contraseña y establece cookies con tokens"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200", 
-            description = "Login exitoso",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = AuthResponseDTO.class)
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400", 
-            description = "Datos de entrada inválidos",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ApiError.class)
-            )
-        ),
-        @ApiResponse(
-            responseCode = "401", 
-            description = "Credenciales inválidas",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ApiError.class)
-            )
-        )
-    })
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponseDTO> login(
-        @Parameter(description = "Credenciales de acceso (email o username)", required = true)
-        @Valid @RequestBody LoginRequestDTO request,
-        HttpServletResponse response
-    ) {
-        AuthResponseDTO authResponse = authService.login(request);
-        
-        // Establecer cookies con los tokens
-        cookieUtil.setAuthCookies(
-            response,
-            authResponse.getAccessToken(),
-            authResponse.getRefreshToken(),
-            authResponse.getExpiresIn().intValue(),
-            86400 // 24 horas para refresh token
-        );
-        
-        return ResponseEntity.ok(authResponse);
     }
 
     @Operation(
