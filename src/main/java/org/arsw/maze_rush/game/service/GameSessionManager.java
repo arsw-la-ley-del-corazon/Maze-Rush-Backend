@@ -23,6 +23,9 @@ public class GameSessionManager {
     
     // Map: lobbyCode -> gameStartTime
     private final Map<String, Instant> gameStartTimes = new ConcurrentHashMap<>();
+    
+    // Map: lobbyCode -> mazeId (UUID del laberinto generado)
+    private final Map<String, String> gameMazes = new ConcurrentHashMap<>();
 
     /**
      * Registra un jugador en una sesión de juego
@@ -53,16 +56,17 @@ public class GameSessionManager {
     }
 
     /**
-     * Marca a un jugador como finalizado
+     * Marca a un jugador como finalizado y registra su tiempo
      */
-    public void markPlayerFinished(String lobbyCode, String username, Long finishTime) {
+    public void markPlayerFinished(String lobbyCode, String username) {
         Map<String, PlayerGameStateDTO> players = gameStates.get(lobbyCode);
         if (players != null) {
             PlayerGameStateDTO player = players.get(username);
-            if (player != null) {
+            if (player != null && !player.getIsFinished()) {
                 player.setIsFinished(true);
+                Long finishTime = getElapsedTime(lobbyCode);
                 player.setFinishTime(finishTime);
-                log.info("Jugador {} terminó el juego {} en {} segundos", 
+                log.info("Jugador {} terminó el juego {} en {} segundos",
                     username, lobbyCode, finishTime);
             }
         }
@@ -149,5 +153,27 @@ public class GameSessionManager {
             return Instant.now().getEpochSecond() - startTime.getEpochSecond();
         }
         return 0L;
+    }
+    
+    /**
+     * Almacena el ID del laberinto generado para esta sesión
+     */
+    public void setMaze(String lobbyCode, String mazeId) {
+        gameMazes.put(lobbyCode, mazeId);
+        log.info("Laberinto {} asignado a la sesión {}", mazeId, lobbyCode);
+    }
+    
+    /**
+     * Obtiene el ID del laberinto para esta sesión
+     */
+    public String getMazeId(String lobbyCode) {
+        return gameMazes.get(lobbyCode);
+    }
+    
+    /**
+     * Verifica si ya se generó un laberinto para esta sesión
+     */
+    public boolean hasMaze(String lobbyCode) {
+        return gameMazes.containsKey(lobbyCode);
     }
 }

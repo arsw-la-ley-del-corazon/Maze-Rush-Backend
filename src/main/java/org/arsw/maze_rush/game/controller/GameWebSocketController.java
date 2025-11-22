@@ -3,6 +3,8 @@ package org.arsw.maze_rush.game.controller;
 import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.game.dto.*;
 import org.arsw.maze_rush.game.service.GameSessionManager;
+import org.arsw.maze_rush.maze.entities.MazeEntity;
+import org.arsw.maze_rush.maze.service.MazeService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -11,6 +13,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,11 +27,14 @@ public class GameWebSocketController {
 
     private final GameSessionManager sessionManager;
     private final SimpMessagingTemplate messagingTemplate;
+    private final MazeService mazeService;
 
     public GameWebSocketController(GameSessionManager sessionManager, 
-                                   SimpMessagingTemplate messagingTemplate) {
+                                   SimpMessagingTemplate messagingTemplate,
+                                   MazeService mazeService) {
         this.sessionManager = sessionManager;
         this.messagingTemplate = messagingTemplate;
+        this.mazeService = mazeService;
     }
 
     /**
@@ -126,13 +132,13 @@ public class GameWebSocketController {
             return;
         }
 
-        // Extraer tiempo de finalización
-        Long finishTime = payload.get("finishTime") != null 
-            ? ((Number) payload.get("finishTime")).longValue()
-            : sessionManager.getElapsedTime(lobbyCode);
+        // Marcar jugador como finalizado (calcula el tiempo internamente)
+        sessionManager.markPlayerFinished(lobbyCode, username);
 
-        // Marcar jugador como finalizado
-        sessionManager.markPlayerFinished(lobbyCode, username, finishTime);
+        // Obtener tiempo para el broadcast
+        Long finishTime = sessionManager.getPlayer(lobbyCode, username) != null
+            ? sessionManager.getPlayer(lobbyCode, username).getFinishTime()
+            : 0L;
 
         // Broadcast del evento de finalización
         GameFinishDTO finishEvent = new GameFinishDTO(username, finishTime);

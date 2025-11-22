@@ -17,7 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -37,17 +39,23 @@ public class LobbyServiceImpl implements LobbyService {
     private final LobbyPlayerRepository lobbyPlayerRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
+    private final org.arsw.maze_rush.maze.service.MazeService mazeService;
+    private final org.arsw.maze_rush.game.service.GameSessionManager gameSessionManager;
 
     public LobbyServiceImpl(LobbyRepository lobbyRepository,
                             UserRepository userRepository,
                             LobbyPlayerRepository lobbyPlayerRepository,
                             RedisTemplate<String, Object> redisTemplate,
-                            SimpMessagingTemplate messagingTemplate) {
+                            SimpMessagingTemplate messagingTemplate,
+                            org.arsw.maze_rush.maze.service.MazeService mazeService,
+                            org.arsw.maze_rush.game.service.GameSessionManager gameSessionManager) {
         this.lobbyRepository = lobbyRepository;
         this.userRepository = userRepository;
         this.lobbyPlayerRepository = lobbyPlayerRepository;
         this.redisTemplate = redisTemplate;
         this.messagingTemplate = messagingTemplate;
+        this.mazeService = mazeService;
+        this.gameSessionManager = gameSessionManager;
     }
 
 
@@ -288,6 +296,30 @@ public class LobbyServiceImpl implements LobbyService {
         lobby.setStatus("EN_CURSO");
         LobbyEntity updatedLobby = lobbyRepository.save(lobby);
         saveToRedis(updatedLobby);
+        
+        // Generar el laberinto una sola vez
+        org.arsw.maze_rush.maze.entities.MazeEntity maze = mazeService.generateMaze(lobby.getMazeSize());
+        
+        // Almacenar el ID del laberinto en la sesión
+        gameSessionManager.setMaze(code, maze.getId().toString());
+        
+        // Notificar a todos los jugadores que el juego ha comenzado con el laberinto compartido
+        try {
+            Map<String, Object> gameStartEvent = new HashMap<>();
+            gameStartEvent.put("action", "game_started");
+            gameStartEvent.put("lobbyCode", code);
+            gameStartEvent.put("mazeSize", lobby.getMazeSize());
+            gameStartEvent.put("maze", maze); // Enviar el laberinto completo
+            gameStartEvent.put("players", lobby.getPlayers().stream()
+                    .map(UserEntity::getUsername)
+                    .collect(Collectors.toList()));
+            
+            messagingTemplate.convertAndSend("/topic/lobby/" + code + "/game", gameStartEvent);
+            log.info("Juego iniciado en lobby {} con {} jugadores y laberinto {}", 
+                code, lobby.getPlayers().size(), maze.getId());
+        } catch (Exception e) {
+            log.error("Error al notificar inicio de juego para lobby {}: {}", code, e.getMessage());
+        }
     }
 
     @Override

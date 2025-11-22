@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 public class PlayerGameStateDTO {
     private String username;
     private PositionDTO position;
-    private Boolean isFinished;
+    private Boolean isFinished = false;
     private Long finishTime; // Tiempo en segundos
     private String avatarColor;
     
