@@ -1,18 +1,16 @@
 package org.arsw.maze_rush.users.entities;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.UUID;
-import java.util.Set;
 
-import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -29,6 +27,7 @@ import lombok.ToString;
 @ToString(exclude = {"password"})
 public class UserEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id", nullable = false, unique = true, columnDefinition = "uuid")
     private UUID id;
 
@@ -47,6 +46,15 @@ public class UserEntity {
     @Column(name = "level", nullable = false)
     private int level = 1;
 
+    @Column(name = "bio", length = 200)
+    private String bio;
+
+    @Column(name = "avatar_color", length = 7)
+    private String avatarColor = "#A46AFF";
+
+    @Column(name = "preferred_maze_size", length = 20)
+    private String preferredMazeSize = "Mediano";
+
     // Campos para OAuth2
     @Enumerated(EnumType.STRING)
     @Column(name = "auth_provider", nullable = false, length = 20)
@@ -61,9 +69,6 @@ public class UserEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @ManyToMany(mappedBy = "players")
-    @com.fasterxml.jackson.annotation.JsonBackReference
-    private Set<LobbyEntity> lobbies = new HashSet<>();
     
     @PrePersist
     @SuppressWarnings("unused")

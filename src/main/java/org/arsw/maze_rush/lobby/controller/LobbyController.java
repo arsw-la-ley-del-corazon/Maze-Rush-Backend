@@ -13,7 +13,6 @@ import org.arsw.maze_rush.lobby.dto.LobbyWithPlayersResponseDTO;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.lobby.service.LobbyService;
 import org.arsw.maze_rush.users.entities.UserEntity;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -42,14 +41,14 @@ public class LobbyController {
         description = "Permite crear una nueva sala de juego (lobby) especificando el tamaño del laberinto, visibilidad y número máximo de jugadores.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Lobby creado exitosamente",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = LobbyResponseDTO.class))),
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = LobbyWithPlayersResponseDTO.class))),
             @ApiResponse(responseCode = "400", description = "Datos inválidos o parámetros fuera de rango"),
             @ApiResponse(responseCode = "401", description = "No autorizado (token inválido o ausente)"),
             @ApiResponse(responseCode = "500", description = "Error interno del servidor")
         }
     )
     @PostMapping("/create")
-    public ResponseEntity<LobbyResponseDTO> createLobby(
+    public ResponseEntity<LobbyWithPlayersResponseDTO> createLobby(
             @Valid @RequestBody
             @Parameter(description = "Datos necesarios para crear un lobby", required = true)
             LobbyRequestDTO request) {
@@ -65,7 +64,22 @@ public class LobbyController {
             creatorUsername
         );
 
-        return ResponseEntity.ok(mapToDTO(lobby));
+        LobbyWithPlayersResponseDTO response = new LobbyWithPlayersResponseDTO();
+        response.setId(lobby.getId().toString());
+        response.setCode(lobby.getCode());
+        response.setMazeSize(lobby.getMazeSize());
+        response.setMaxPlayers(lobby.getMaxPlayers());
+        response.setPublic(lobby.isPublic());
+        response.setStatus(lobby.getStatus());
+        response.setCreatorUsername(lobby.getCreatorUsername());
+        response.setCreatedAt(lobby.getCreatedAt().toString());
+        response.setPlayers(
+            lobby.getPlayers().stream()
+                    .map(UserEntity::getUsername)
+                    .toList()
+        );
+
+        return ResponseEntity.ok(response);
     }
 
 
@@ -192,7 +206,8 @@ public class LobbyController {
         dto.setCode(lobby.getCode());
         dto.setMazeSize(lobby.getMazeSize());
         dto.setMaxPlayers(lobby.getMaxPlayers());
-        dto.setPublic(lobby.isPublic());
+        dto.setCurrentPlayers(lobby.getPlayers().size());  // Número actual de jugadores
+        dto.setPublic(lobby.isPublic());  // Lombok genera isPublic() para boolean, y setPublic() en el DTO
         dto.setStatus(lobby.getStatus());
         dto.setCreatorUsername(lobby.getCreatorUsername());
         dto.setCreatedAt(lobby.getCreatedAt().toString());

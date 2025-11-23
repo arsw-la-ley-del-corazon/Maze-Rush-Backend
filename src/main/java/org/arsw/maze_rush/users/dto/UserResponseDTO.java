@@ -38,4 +38,23 @@ public class UserResponseDTO {
         minimum = "1"
     )
     private int level;
+
+    @Schema(
+        description = "Biografía del usuario", 
+        example = "Cazador experto de laberintos",
+        maxLength = 200
+    )
+    private String bio;
+
+    @Schema(
+        description = "Color del avatar en formato hexadecimal", 
+        example = "#A46AFF"
+    )
+    private String avatarColor;
+
+    @Schema(
+        description = "Tamaño preferido de laberinto", 
+        example = "Mediano"
+    )
+    private String preferredMazeSize;
 }

@@ -16,7 +16,8 @@ public interface LobbyService {
     
     // WebSocket methods
     void sendChatMessage(String code, String username, String message);
-    void toggleReady(String code, String username);
+    boolean toggleReady(String code, String username);
     void startGame(String code, String username);
+    void notifyPlayersUpdate(String code);
 
 }

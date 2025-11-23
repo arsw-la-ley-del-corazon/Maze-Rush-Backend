@@ -15,6 +15,7 @@ import java.util.UUID;
 public class LobbyPlayerEntity {
     
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id", nullable = false, unique = true, columnDefinition = "uuid")
     private UUID id;
 
