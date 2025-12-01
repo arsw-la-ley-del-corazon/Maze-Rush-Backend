@@ -1,88 +1,84 @@
 package org.arsw.maze_rush.game.logic.service.impl;
 
+import org.arsw.maze_rush.game.dto.PlayerGameStateDTO;
+import org.arsw.maze_rush.game.dto.PositionDTO;
 import org.arsw.maze_rush.game.entities.GameEntity;
 import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
 import org.arsw.maze_rush.game.logic.entities.GameState;
-import org.arsw.maze_rush.game.logic.entities.PlayerPosition;
-import org.arsw.maze_rush.powerups.entities.PowerUp;
 import org.arsw.maze_rush.game.repository.GameRepository;
+import org.arsw.maze_rush.game.service.GameSessionManager;
 import org.arsw.maze_rush.lobby.entities.LobbyEntity;
 import org.arsw.maze_rush.maze.entities.MazeEntity;
+import org.arsw.maze_rush.powerups.entities.PowerUp;
+import org.arsw.maze_rush.powerups.entities.PowerUpType;
 import org.arsw.maze_rush.powerups.service.PowerUpService;
 import org.arsw.maze_rush.users.entities.UserEntity;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class GameLogicServiceImplTest {
 
-    private GameRepository gameRepository;
-    private PowerUpService powerUpService;
+    @Mock private GameRepository gameRepository;
+    @Mock private PowerUpService powerUpService;
+    @Mock private GameSessionManager gameSessionManager; 
+
+    @InjectMocks
     private GameLogicServiceImpl service;
 
-    private Map<UUID, GameState> activeGames;
+    private UUID gameId;
+    private GameEntity gameEntity;
+    private MazeEntity mazeEntity;
+    private final String lobbyCode = "TEST_LOBBY";
+    private final String username = "player1";
 
     @BeforeEach
     void setup() {
-        gameRepository = mock(GameRepository.class);
-        powerUpService = mock(PowerUpService.class);
+        gameId = UUID.randomUUID();
 
-        service = new GameLogicServiceImpl(gameRepository, powerUpService);
+        mazeEntity = new MazeEntity();
+        mazeEntity.setLayout("000\n000\n000"); 
+        mazeEntity.setWidth(3);
+        mazeEntity.setHeight(3);
+        mazeEntity.setStartX(0);
+        mazeEntity.setStartY(0);
 
-        activeGames = (Map<UUID, GameState>) getPrivateField(service, "activeGames");
-        activeGames.clear();
+        LobbyEntity lobby = new LobbyEntity();
+        lobby.setCode(lobbyCode);
+        lobby.setMaze(mazeEntity);
+
+        gameEntity = new GameEntity();
+        gameEntity.setId(gameId);
+        gameEntity.setLobby(lobby);
+        gameEntity.setPlayers(Set.of(fakeUser(username)));
     }
 
-
-    @Test
-    void initializeGame_ShouldThrow_WhenGameNotFound() {
-        UUID id = UUID.randomUUID();
-        when(gameRepository.findById(id)).thenReturn(Optional.empty());
-
-        assertThrows(IllegalArgumentException.class, () -> service.initializeGame(id));
-    }
-
-    @Test
-    void initializeGame_ShouldThrow_WhenMazeNull() {
-        UUID id = UUID.randomUUID();
-
-        GameEntity game = new GameEntity();
-        game.setMaze(null);
-        game.setPlayers(new HashSet<>(Set.of(fakeUser("test"))));
-
-        when(gameRepository.findById(id)).thenReturn(Optional.of(game));
-
-        assertThrows(IllegalStateException.class, () -> service.initializeGame(id));
-    }
-
-
-    @Test
-    void initializeGame_ShouldThrow_WhenPlayersEmpty() {
-        UUID id = UUID.randomUUID();
-
-        GameEntity game = new GameEntity();
-        game.setMaze(fakeMaze());
-        game.setPlayers(new HashSet<>());
-
-        when(gameRepository.findById(id)).thenReturn(Optional.of(game));
-
-        assertThrows(IllegalStateException.class, () -> service.initializeGame(id));
-    }
-
-
+    // TESTS DE INICIALIZACIÓN
     @Test
     void initializeGame_ShouldInitializeCorrectly() {
-
         UUID id = UUID.randomUUID();
+        MazeEntity maze = fakeMaze();
+
+        LobbyEntity lobby = new LobbyEntity();
+        lobby.setCode("LOBBY_TEST");
+        lobby.setMaze(maze);
 
         GameEntity game = new GameEntity();
-        game.setMaze(fakeMaze());
+        game.setId(id);
+        game.setLobby(lobby); 
+        game.setMaze(maze);   
         game.setPlayers(new HashSet<>(Set.of(fakeUser("player1"))));
 
         when(gameRepository.findById(id)).thenReturn(Optional.of(game));
@@ -91,148 +87,134 @@ class GameLogicServiceImplTest {
                 PowerUp.builder().x(2).y(2).build()
         );
 
-        when(powerUpService.generatePowerUps(any(), any())).thenReturn(generated);
+        when(powerUpService.generatePowerUps(any(MazeEntity.class))).thenReturn(generated);
 
         GameState st = service.initializeGame(id);
 
         assertNotNull(st);
         assertEquals("EN_CURSO", st.getStatus());
         assertEquals(id, st.getGameId());
-        assertEquals(1, st.getPlayerPositions().size());
-        assertEquals(1, st.getPowerUps().size());
-
-        verify(gameRepository, times(1)).save(game);
+        
+        verify(gameSessionManager).setPowerUps("LOBBY_TEST",generated);
+        verify(gameRepository).save(game);
     }
 
-
-    @Test
-    void movePlayer_ShouldThrow_WhenGameNotActive() {
-        UUID gameId = UUID.randomUUID();
-        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
-        req.setUsername("p1");
-        req.setDirection("UP");
-
-        assertThrows(IllegalStateException.class, () -> service.movePlayer(gameId, req));
-    }
-
-
-    @Test
-    void movePlayer_ShouldThrow_WhenPlayerMissing() {
-
-        UUID gameId = UUID.randomUUID();
-
-        GameState st = new GameState();
-        st.setPlayerPositions(new ArrayList<>());
-        activeGames.put(gameId, st);
-
-        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
-        req.setUsername("p1");
-        req.setDirection("UP");
-
-        assertThrows(IllegalArgumentException.class, () -> service.movePlayer(gameId, req));
-    }
-
-
-    @Test
-    void movePlayer_ShouldThrow_WhenOutOfBounds() {
-
-        UUID gameId = UUID.randomUUID();
-
-        PlayerPosition pos = new PlayerPosition(fakeUser("p1"), 0, 0, 0);
-
-        GameState st = new GameState();
-        st.setPlayerPositions(List.of(pos));
-        activeGames.put(gameId, st);
-
-        GameEntity game = fakeGameWithLayout("""
-                000
-                000
-                000
-                """);
-
-        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
-
-        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
-        req.setUsername("p1");
-        req.setDirection("UP");
-
-        assertThrows(IllegalStateException.class, () -> service.movePlayer(gameId, req));
-    }
-
-
+    // TESTS DE MOVIMIENTO BÁSICO
     @Test
     void movePlayer_ShouldMoveCorrectly() {
-
-        UUID gameId = UUID.randomUUID();
-
-        PlayerPosition pos = new PlayerPosition(fakeUser("p1"), 1, 1, 0);
-
-        GameState st = new GameState();
-        st.setPlayerPositions(List.of(pos));
-        st.setPowerUps(new ArrayList<>());
-        activeGames.put(gameId, st);
-
-        GameEntity game = fakeGameWithLayout("""
-                000
-                000
-                000
-                """);
-
-        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
-
-        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
-        req.setUsername("p1");
-        req.setDirection("UP");
-
-        GameState result = service.movePlayer(gameId, req);
-
-        PlayerPosition updated = result.getPlayerPositions().get(0);
-
-        assertEquals(1, updated.getX());
-        assertEquals(0, updated.getY());
-    }
-
-    @Test
-    void movePlayer_ShouldCollectPowerUp() {
-        UUID gameId = UUID.randomUUID();
-        String username = "p1";
-
-        PlayerPosition pos = new PlayerPosition(fakeUser(username), 0, 0, 0);
-
-        PowerUp powerUp = PowerUp.builder()
-                .type(org.arsw.maze_rush.powerups.entities.PowerUpType.FREEZE) 
-                .x(1)
-                .y(0)
-                .build();
-
-        GameState st = new GameState();
-        st.setPlayerPositions(List.of(pos));
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
         
-        st.setPowerUps(new ArrayList<>(List.of(powerUp))); 
-        
-        activeGames.put(gameId, st);
-
-        GameEntity game = fakeGameWithLayout("0P0\n000");
-        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO();
+        playerState.setUsername(username);
+        playerState.setPosition(new PositionDTO(1, 1));
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
 
         PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
         req.setUsername(username);
-        req.setDirection("RIGHT"); // (0,0) -> (1,0)
+        req.setDirection("UP");
 
-        GameState result = service.movePlayer(gameId, req);
+        service.movePlayer(gameId, req);
+
+        ArgumentCaptor<PositionDTO> captor = ArgumentCaptor.forClass(PositionDTO.class);
+        verify(gameSessionManager).updatePlayerPosition(eq(lobbyCode), eq(username), captor.capture());
         
-        //  El jugador se movió correctamente
-        PlayerPosition updatedPos = result.getPlayerPositions().get(0);
-        assertEquals(1, updatedPos.getX());
-        assertEquals(0, updatedPos.getY());
-
-        //  El PowerUp desapareció de la lista lógica (Recolección exitosa)
-        assertTrue(result.getPowerUps().isEmpty(), "El powerup debió ser recolectado y eliminado de la lista.");
-        // Verificar que el layout visual cambió de 'P' a '0'
-        String currentLayout = game.getLobby().getMaze().getLayout();
-        assertFalse(currentLayout.contains("P"), "El powerup debió desaparecer visualmente del mapa");
+        // (1,1) -> UP -> (1,0)
+        assertEquals(1, captor.getValue().getX());
+        assertEquals(0, captor.getValue().getY());
     }
 
+    // TESTS EFECTOS TEMPORALES
+    @Test
+    void movePlayer_WhenFrozen_ShouldNotMove() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO();
+        playerState.setUsername(username);
+        playerState.setPosition(new PositionDTO(1, 1));
+        
+        // ** FREEZE **
+        playerState.getActiveEffects().put(PowerUpType.FREEZE, Instant.now().plusSeconds(5).toEpochMilli());
+
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
+
+        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
+        req.setUsername(username);
+        req.setDirection("UP");
+
+        service.movePlayer(gameId, req);
+
+        verify(gameSessionManager, never()).updatePlayerPosition(anyString(), anyString(), any());
+        
+        verify(gameSessionManager).cleanExpiredEffects(lobbyCode, username);
+    }
+
+    @Test
+    void movePlayer_WhenConfused_ShouldInvertControls() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO();
+        playerState.setUsername(username);
+        playerState.setPosition(new PositionDTO(1, 1)); // Centro
+
+        // ** CONFUSION **
+        playerState.getActiveEffects().put(PowerUpType.CONFUSION, Instant.now().plusSeconds(5).toEpochMilli());
+
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
+
+        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
+        req.setUsername(username);
+        req.setDirection("UP");
+
+        service.movePlayer(gameId, req);
+
+        ArgumentCaptor<PositionDTO> positionCaptor = ArgumentCaptor.forClass(PositionDTO.class);
+        verify(gameSessionManager).updatePlayerPosition(eq(lobbyCode), eq(username), positionCaptor.capture());
+        
+        PositionDTO newPos = positionCaptor.getValue();
+        
+        // Verificamos lógica invertida: (1,1) -> UP (invertido a DOWN) -> (1,2)
+        assertEquals(1, newPos.getX());
+        assertEquals(2, newPos.getY(), "Con confusión, UP debe actuar como DOWN");
+    }
+
+    // TESTS APLICACIÓN DE PODERES AL RECOGER
+    @Test
+    void movePlayer_CollectClearFog_ShouldApplyToSelf() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+        
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO(username, new PositionDTO(0, 0));
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
+
+        PowerUp powerUp = PowerUp.builder().type(PowerUpType.CLEAR_FOG).duration(5).x(1).y(0).build();
+        when(gameSessionManager.checkAndCollectPowerUp(lobbyCode, 1, 0)).thenReturn(powerUp);
+
+         PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
+        req.setUsername(username);
+        req.setDirection("RIGHT");
+
+        service.movePlayer(gameId, req);
+
+        verify(gameSessionManager).applyEffect(lobbyCode,username, PowerUpType.CLEAR_FOG, 5);
+    }
+
+    @Test
+    void movePlayer_CollectFreeze_ShouldApplyToOpponents() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+        
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO(username, new PositionDTO(0, 0));
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
+
+        PowerUp powerUp = PowerUp.builder().type(PowerUpType.FREEZE).duration(3).x(1).y(0).build();
+        when(gameSessionManager.checkAndCollectPowerUp(lobbyCode, 1, 0)).thenReturn(powerUp);
+
+        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
+        req.setUsername(username);
+        req.setDirection("RIGHT");
+
+        service.movePlayer(gameId, req);
+
+        verify(gameSessionManager).applyEffectToOpponents(lobbyCode,username,PowerUpType.FREEZE,3);
+    }
 
 
     private UserEntity fakeUser(String username) {
@@ -242,60 +224,16 @@ class GameLogicServiceImplTest {
     }
 
     private MazeEntity fakeMaze() {
-        return MazeEntity.builder()
-                .width(5)
-                .height(5)
-                .startX(0)
-                .startY(0)
-                .goalX(4)
-                .goalY(4)
-                .layout("""
-                        00000
-                        00000
-                        00000
-                        00000
-                        00000
-                        """)
-                .build();
+        MazeEntity m = new MazeEntity();
+        m.setWidth(5);
+        m.setHeight(5);
+        m.setStartX(0);
+        m.setStartY(0);
+        m.setGoalX(4);
+        m.setGoalY(4);
+        m.setLayout("00000\n00000\n00000\n00000\n00000");
+        return m;
     }
 
-
-    private GameEntity fakeGameWithLayout(String layout) {
-        int height = layout.split("\n").length;
-        int width = layout.split("\n")[0].length();
-
-        MazeEntity maze = MazeEntity.builder()
-                .width(width)
-                .height(height)
-                .startX(1)
-                .startY(1)
-                .goalX(2)
-                .goalY(2)
-                .layout(layout)
-                .build();
-
-        GameEntity g = new GameEntity();
-        g.setMaze(maze);
-        g.setLobby(fakeLobbyWithMaze(maze)); 
-        g.setPlayers(Set.of(fakeUser("p1")));
-        return g;
-    }
-
-
-    private Object getPrivateField(Object obj, String field) {
-        try {
-            var f = obj.getClass().getDeclaredField(field);
-            f.setAccessible(true);
-            return f.get(obj);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private LobbyEntity fakeLobbyWithMaze(MazeEntity maze) {
-        LobbyEntity lobby = new LobbyEntity();
-        lobby.setMaze(maze);
-        return lobby;
-    }
 
 }

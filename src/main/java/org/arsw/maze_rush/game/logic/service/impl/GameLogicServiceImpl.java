@@ -1,185 +1,199 @@
 package org.arsw.maze_rush.game.logic.service.impl;
 
+import lombok.extern.slf4j.Slf4j;
+import org.arsw.maze_rush.game.dto.PlayerGameStateDTO;
+import org.arsw.maze_rush.game.dto.PositionDTO;
 import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
 import org.arsw.maze_rush.game.logic.entities.GameState;
-import org.arsw.maze_rush.game.logic.entities.PlayerPosition;
 import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.entities.GameEntity;
 import org.arsw.maze_rush.game.repository.GameRepository;
+import org.arsw.maze_rush.game.service.GameSessionManager;
 import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.arsw.maze_rush.powerups.entities.PowerUp;
+import org.arsw.maze_rush.powerups.entities.PowerUpType;
 import org.arsw.maze_rush.powerups.service.PowerUpService;
 import org.springframework.stereotype.Service;
 
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
 public class GameLogicServiceImpl implements GameLogicService {
-    private final PowerUpService powerUpService;
-    private final GameRepository gameRepository;
-    private final Map<UUID, GameState> activeGames = new ConcurrentHashMap<>();
+    private static final String UP = "UP";
+    private static final String DOWN = "DOWN";
+    private static final String LEFT = "LEFT";
+    private static final String RIGHT = "RIGHT";
 
-    public GameLogicServiceImpl(GameRepository gameRepository, PowerUpService powerUpService) {
+    private final GameRepository gameRepository;
+    private final PowerUpService powerUpService;
+    private final GameSessionManager gameSessionManager;
+
+    public GameLogicServiceImpl(
+            GameRepository gameRepository, 
+            PowerUpService powerUpService,
+            GameSessionManager gameSessionManager) {
         this.gameRepository = gameRepository;
         this.powerUpService = powerUpService;
+        this.gameSessionManager = gameSessionManager;
     }
 
     @Override
     public GameState initializeGame(UUID gameId) {
-        
         GameEntity game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("Juego no encontrado"));
 
         MazeEntity maze = game.getMaze();
-        if (maze == null){
-            throw new IllegalStateException("El lobby no tiene laberinto asociado");
-        }
-        if (game.getPlayers() == null || game.getPlayers().isEmpty()) {
-            throw new IllegalStateException("El juego no tiene jugadores asignados");
-        }
-        List<PlayerPosition> positions = new ArrayList<>();
-        int startX = maze.getStartX();
-        int startY = maze.getStartY();
-        for (var player : game.getPlayers()) {
-            positions.add(new PlayerPosition(player, startX, startY, 0));
-        }
-        var powerUps = powerUpService.generatePowerUps(maze, positions);
+        if (maze == null) throw new IllegalStateException("El lobby no tiene laberinto asociado");
+        
+        String lobbyCode = game.getLobby().getCode();
+        
+        // Generar PowerUps
+        List<PowerUp> powerUps = powerUpService.generatePowerUps(maze); 
 
+        // Guardar PowerUps en SessionManager
+        gameSessionManager.setPowerUps(lobbyCode, powerUps);
+
+        // Plasmar PowerUps en el layout
         char[][] matrix = convertJSONLayoutToMatrix(maze.getLayout(), maze.getWidth(), maze.getHeight());
         applyPowerUpsToLayout(matrix, powerUps);
-        String updatedLayout = convertMatrixToJSON(matrix);
-
-        maze.setLayout(updatedLayout);
-
+        maze.setLayout(convertMatrixToJSON(matrix));
         gameRepository.save(game);
 
-        GameState state = new GameState();
-        state.setGameId(gameId);
-        state.setStatus("EN_CURSO");
-        state.setPlayerPositions(positions);
-        state.setPowerUps(powerUps); 
-
-        activeGames.put(gameId, state);
-        
-        return state;
+        return buildGameStateFromManager(gameId);
     }
 
     @Override
     public GameState movePlayer(UUID gameId, PlayerMoveRequestDTO moveRequest) {
-        GameState state = activeGames.get(gameId);
-        if (state == null) throw new IllegalStateException("El juego no está activo");
-
-        PlayerPosition player = state.getPlayerPositions().stream()
-                .filter(p -> p.getPlayer().getUsername().equalsIgnoreCase(moveRequest.getUsername()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Jugador no encontrado"));
-
-        // Obtener el laberinto actual del juego
         GameEntity game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("Juego no encontrado"));
-        MazeEntity maze = game.getLobby().getMaze();
+        String lobbyCode = game.getLobby().getCode();
+        String username = moveRequest.getUsername();
 
-        // Convertir layout a matriz
-        String[] rows = maze.getLayout().split("\n");
-        int height = rows.length;
-        int width = rows[0].length();
+        PlayerGameStateDTO playerState = gameSessionManager.getPlayer(lobbyCode, username);
+        if (playerState == null) throw new IllegalStateException("Jugador no encontrado en la sesión");
 
-        int newX = player.getX();
-        int newY = player.getY();
+        // Antes de calcular movimiento, limpiamos efectos y verificamos freeze
+        gameSessionManager.cleanExpiredEffects(lobbyCode, username);
+        
+        if (playerState.getActiveEffects().containsKey(PowerUpType.FREEZE)) {
+            log.info("Jugador {} está congelado. Turno perdido.", username);
+            return buildGameStateFromManager(gameId); // Retornamos sin mover
+        }
 
-        switch (moveRequest.getDirection().toUpperCase()) {
-            case "UP" -> newY--;
-            case "DOWN" -> newY++;
-            case "LEFT" -> newX--;
-            case "RIGHT" -> newX++;
+        // Validar CONFUSIÓN (Invertir controles)
+        String direction = moveRequest.getDirection().toUpperCase();
+        if (playerState.getActiveEffects().containsKey(PowerUpType.CONFUSION)) {
+            log.info("Jugador {} está confuso. Controles invertidos.", username);
+            direction = invertDirection(direction);
+        }
+
+        // Calcular nueva posición usando la dirección (posiblemente invertida)
+        int newX = playerState.getPosition().getX();
+        int newY = playerState.getPosition().getY();
+
+        switch (direction) {
+            case UP -> newY--;
+            case DOWN -> newY++;
+            case LEFT -> newX--;
+            case RIGHT -> newX++;
             default -> throw new IllegalArgumentException("Dirección no válida");
         }
 
-        // Validar límites del mapa
-        if (newY < 0 || newY >= height || newX < 0 || newX >= width) {
-            throw new IllegalStateException("Movimiento fuera de los límites del mapa");
-        }
+        // Validar Muros
+        MazeEntity maze = game.getLobby().getMaze();
+        validateMove(maze, newX, newY);
 
-        // Validar colisión con pared
-        char destination = rows[newY].charAt(newX);
-        if (destination == '1') {
-            throw new IllegalStateException("Movimiento bloqueado por una pared");
-        }
-
-        // Verificamos si en la lista de PowerUps activos hay uno en esta posición
-        Iterator<PowerUp> iterator = state.getPowerUps().iterator();
-        while (iterator.hasNext()) {
-            PowerUp pu = iterator.next();
-            if (pu.getX() == newX && pu.getY() == newY) {
-                log.info("Jugador {} recogió {}", player.getPlayer().getUsername(), pu.getType());
-                
-                // Eliminar de la lista lógica
-                iterator.remove();
+        //  Recolección y APLICACIÓN de efectos
+        PowerUp collected = gameSessionManager.checkAndCollectPowerUp(lobbyCode, newX, newY);
+        
+        if (collected != null) {
+            log.info("Jugador {} recogió {}", username, collected.getType());
             
-                // Obtenemos el layout actual
-                String currentLayout = maze.getLayout();
+            // APLICAR EL EFECTO 
+            switch (collected.getType()) {
+                case CLEAR_FOG -> gameSessionManager.applyEffect(
+                        lobbyCode, username, PowerUpType.CLEAR_FOG, collected.getDuration());
                 
-                // Lo convertimos a matriz para editarlo
-                char[][] matrix = convertJSONLayoutToMatrix(currentLayout, maze.getWidth(), maze.getHeight());
+                case FREEZE -> gameSessionManager.applyEffectToOpponents(
+                        lobbyCode, username, PowerUpType.FREEZE, collected.getDuration());
                 
-                // Borramos la 'P' visualmente 
-                matrix[newY][newX] = '0'; 
-                
-                String newLayout = convertMatrixToJSON(matrix);
-                maze.setLayout(newLayout);
-                
-                gameRepository.save(game); 
-                
-                break; 
+                case CONFUSION -> gameSessionManager.applyEffectToOpponents(
+                        lobbyCode, username, PowerUpType.CONFUSION, collected.getDuration());
             }
+
+            // Actualizar visualmente el mapa
+            updateMazeLayoutVisuals(maze, newX, newY);
+            gameRepository.save(game);
         }
 
+        // Actualizar posición en Manager
+        gameSessionManager.updatePlayerPosition(lobbyCode, username, new PositionDTO(newX, newY));
 
-
-        // Movimiento válido → actualizar posición
-        player.setX(newX);
-        player.setY(newY);
-
-        return state;
+        return buildGameStateFromManager(gameId);
     }
 
     @Override
     public GameState getCurrentState(UUID gameId) {
-        return activeGames.get(gameId);
+        return buildGameStateFromManager(gameId);
+    }
+
+    // --- Métodos Auxiliares ---
+
+    private String invertDirection(String dir) {
+        return switch (dir) {
+            case UP -> DOWN;
+            case DOWN -> UP;
+            case LEFT -> RIGHT;
+            case RIGHT -> LEFT;
+            default -> dir;
+        };
+    }
+
+    private void validateMove(MazeEntity maze, int x, int y) {
+        String[] rows = maze.getLayout().split("\n");
+        if (y < 0 || y >= rows.length || x < 0 || x >= rows[0].length()) {
+            throw new IllegalStateException("Movimiento fuera de límites");
+        }
+        if (rows[y].charAt(x) == '1') {
+            throw new IllegalStateException("Movimiento bloqueado por pared");
+        }
+    }
+
+    private void updateMazeLayoutVisuals(MazeEntity maze, int x, int y) {
+        char[][] matrix = convertJSONLayoutToMatrix(maze.getLayout(), maze.getWidth(), maze.getHeight());
+        matrix[y][x] = '0'; 
+        maze.setLayout(convertMatrixToJSON(matrix));
+    }
+
+    private GameState buildGameStateFromManager(UUID gameId) {
+        GameState state = new GameState();
+        state.setGameId(gameId);
+        state.setStatus("EN_CURSO");
+        
+        return state;
     }
 
     private char[][] convertJSONLayoutToMatrix(String layout, int width, int height) {
         String[] rows = layout.split("\n");
-
         char[][] matrix = new char[height][width];
-
         for (int y = 0; y < height; y++) {
-            matrix[y] = rows[y].toCharArray();
+            matrix[y] = rows[y].toCharArray(); 
         }
-
         return matrix;
     }
 
     private void applyPowerUpsToLayout(char[][] matrix, List<PowerUp> powerUps) {
         for (PowerUp pu : powerUps) {
-            matrix[pu.getY()][pu.getX()] = 'P'; // P = PowerUp
+            matrix[pu.getY()][pu.getX()] = 'P';
         }
     }
 
     private String convertMatrixToJSON(char[][] matrix) {
         StringBuilder sb = new StringBuilder();
-
         for (char[] row : matrix) {
             sb.append(new String(row)).append("\n");
         }
-
         return sb.toString().trim();
     }
-
-
-
 }

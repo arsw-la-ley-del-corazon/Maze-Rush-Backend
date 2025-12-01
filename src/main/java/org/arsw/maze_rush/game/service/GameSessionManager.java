@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.game.dto.PlayerGameStateDTO;
 import org.arsw.maze_rush.game.dto.PositionDTO;
 import org.arsw.maze_rush.powerups.entities.PowerUp;
+import org.arsw.maze_rush.powerups.entities.PowerUpType;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -211,6 +212,43 @@ public class GameSessionManager {
         }
         return null;
     }
+
+    /**
+     * Aplica un efecto a un jugador específico en la sesión.
+     */
+    public void applyEffect(String lobbyCode, String username, PowerUpType type, int durationSeconds) {
+        PlayerGameStateDTO player = getPlayer(lobbyCode, username);
+        if (player != null) {
+            long expirationTime = Instant.now().plusSeconds(durationSeconds).toEpochMilli();
+            player.getActiveEffects().put(type, expirationTime);
+            log.info("Efecto {} aplicado a {} por {}s", type, username, durationSeconds);
+        }
+    }
+
+    /**
+     * Aplica un efecto a TODOS los oponentes (excluyendo al que lo lanzó).
+     */
+    public void applyEffectToOpponents(String lobbyCode, String sourceUsername, PowerUpType type, int durationSeconds) {
+        List<PlayerGameStateDTO> allPlayers = getPlayers(lobbyCode);
+        for (PlayerGameStateDTO p : allPlayers) {
+            if (!p.getUsername().equals(sourceUsername)) { 
+                applyEffect(lobbyCode, p.getUsername(), type, durationSeconds);
+            }
+        }
+    }
+
+    /**
+     * Limpia los efectos expirados de un jugador.
+     */
+    public void cleanExpiredEffects(String lobbyCode, String username) {
+        PlayerGameStateDTO player = getPlayer(lobbyCode, username);
+        if (player != null && !player.getActiveEffects().isEmpty()) {
+            long now = Instant.now().toEpochMilli();
+            player.getActiveEffects().values().removeIf(expiration -> now > expiration);
+        }
+    }
+
+
 
 
 }

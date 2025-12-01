@@ -2,6 +2,10 @@ package org.arsw.maze_rush.game.dto;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.arsw.maze_rush.powerups.entities.PowerUpType;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,14 +21,16 @@ public class PlayerGameStateDTO {
     private String username;
     private PositionDTO position;
     private Boolean isFinished = false;
-    private Long finishTime; // Tiempo en segundos
+    private Long finishTime; 
     private String avatarColor;
+    private Map<PowerUpType, Long> activeEffects = new ConcurrentHashMap<>();
     
     public PlayerGameStateDTO(String username, PositionDTO position) {
         this.username = username;
         this.position = position;
         this.isFinished = false;
         this.avatarColor = generateColorForUsername(username);
+        
     }
     
     /**
