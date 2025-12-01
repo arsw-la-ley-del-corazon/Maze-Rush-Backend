@@ -1,8 +1,11 @@
 package org.arsw.maze_rush.auth.config;
 
 import org.arsw.maze_rush.auth.filter.JwtAuthenticationFilter;
+import org.arsw.maze_rush.auth.handler.OAuth2AuthenticationSuccessHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -16,14 +19,21 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@Profile("!test")
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
+    private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, CorsConfigurationSource corsConfigurationSource) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter, 
+            CorsConfigurationSource corsConfigurationSource,
+            @Autowired(required = false) OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler){
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
+        
     }
 
     @Bean
@@ -37,6 +47,17 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/google").permitAll()
+                
+                // Endpoints públicos de recuperación de contraseña
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/password/forgot").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/password/reset").permitAll()
+                
+                // OAuth2 endpoints
+                .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                
+                // WebSocket endpoints
+                .requestMatchers("/ws/**", "/app/**", "/topic/**", "/queue/**", "/user/**").permitAll()
                 
                 // Endpoints públicos de usuarios (solo para consulta)
                 .requestMatchers(HttpMethod.GET, "/api/v1/users").permitAll()
@@ -53,8 +74,16 @@ public class SecurityConfig {
                 
                 // Todos los demás endpoints requieren autenticación
                 .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            );
+            
+            // Configurar OAuth2 Login solo si el handler está disponible
+            if (oAuth2AuthenticationSuccessHandler != null) {
+                http.oauth2Login(oauth2 -> oauth2
+                    .successHandler(oAuth2AuthenticationSuccessHandler)
+                );
+            }
+            
+            http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

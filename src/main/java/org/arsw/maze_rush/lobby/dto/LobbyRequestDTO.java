@@ -1,5 +1,6 @@
 package org.arsw.maze_rush.lobby.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -9,7 +10,7 @@ import lombok.Data;
     name = "LobbyRequest",
     description = "Datos de entrada requeridos para crear un lobby de juego."
 )
-public class LobbyRequestDTO {
+public class LobbyRequestDTO  {
 
     @Schema(
         description = "Tamaño del laberinto (Pequeño, Mediano o Grande).",
@@ -34,7 +35,8 @@ public class LobbyRequestDTO {
         description = "Define si el lobby será público o privado.",
         example = "true"
     )
-    private boolean isPublic;
+    @JsonProperty("isPublic")
+    private boolean isPublic = true;  // Por defecto público
 
     @Schema(
         description = "Estado inicial del lobby (opcional, se define automáticamente si no se envía).",

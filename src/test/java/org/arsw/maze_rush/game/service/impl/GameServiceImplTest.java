@@ -34,14 +34,12 @@ class GameServiceImplTest {
         service = new GameServiceImpl(gameRepository, lobbyRepository, mazeService);
     }
 
-
     // startGame
-    
     @Test
     void testStartGame_OK() {
 
-        // Lobby con jugadores suficientes
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1");   
 
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
@@ -49,7 +47,8 @@ class GameServiceImplTest {
         UserEntity u2 = new UserEntity();
         u2.setUsername("user2");
 
-        lobby.setPlayers(new HashSet<>(List.of(u1, u2)));
+        lobby.addPlayer(u1);
+        lobby.addPlayer(u2);
 
         lobby.setMazeSize("MEDIUM");
 
@@ -79,9 +78,11 @@ class GameServiceImplTest {
     @Test
     void testStartGame_NotEnoughPlayers() {
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1");  
+
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
-        lobby.setPlayers(Set.of(u1));
+        lobby.addPlayer(u1);
 
         when(lobbyRepository.findByCode("ABC")).thenReturn(Optional.of(lobby));
         assertThrows(IllegalStateException.class, () -> service.startGame("ABC"));
@@ -90,11 +91,14 @@ class GameServiceImplTest {
     @Test
     void testStartGame_ExistingActiveGame() {
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1"); 
+
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
         UserEntity u2 = new UserEntity();
         u2.setUsername("user2");
-        lobby.setPlayers(Set.of(u1,u2));
+        lobby.addPlayer(u1);
+        lobby.addPlayer(u2);
 
         GameEntity existing = GameEntity.builder().status("EN_CURSO").build();
 
@@ -107,14 +111,17 @@ class GameServiceImplTest {
     @Test
     void testStartGame_GeneratesMazeIfNull() {
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1");  
         lobby.setMazeSize("SMALL");
+
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
 
         UserEntity u2 = new UserEntity();
         u2.setUsername("user2");
 
-        lobby.setPlayers(Set.of(u1, u2));
+        lobby.addPlayer(u1);
+        lobby.addPlayer(u2);
         lobby.setMaze(null);
 
         MazeEntity generatedMaze = new MazeEntity();
@@ -132,7 +139,6 @@ class GameServiceImplTest {
     }
 
     // getGameById
-
     @Test
     void testGetGameById_OK() {
         UUID id = UUID.randomUUID();
@@ -155,7 +161,6 @@ class GameServiceImplTest {
     }
 
     // finishGame
-
     @Test
     void testFinishGame_OK() {
         UUID id = UUID.randomUUID();
@@ -205,7 +210,7 @@ class GameServiceImplTest {
         GameEntity game = GameEntity.builder()
                 .id(id)
                 .status("EN_CURSO")
-                .lobby(null)   // lobby es null
+                .lobby(null)
                 .build();
 
         when(gameRepository.findById(id)).thenReturn(Optional.of(game));
@@ -214,6 +219,6 @@ class GameServiceImplTest {
         GameEntity result = service.finishGame(id);
 
         assertEquals("FINALIZADO", result.getStatus());
-        verify(lobbyRepository, never()).save(any()); // no debe llamarse
+        verify(lobbyRepository, never()).save(any());
     }
 }

@@ -32,9 +32,16 @@ public class CorsConfig implements WebMvcConfigurer {
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
+        configuration.setExposedHeaders(Arrays.asList("Set-Cookie"));
+        // Configurar headers de seguridad para permitir postMessage
+        configuration.addExposedHeader("Cross-Origin-Opener-Policy");
+        configuration.addExposedHeader("Cross-Origin-Embedder-Policy");
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
+        source.registerCorsConfiguration("/oauth2/**", configuration);
+        source.registerCorsConfiguration("/login/oauth2/**", configuration);
+        source.registerCorsConfiguration("/ws/**", configuration);
         return source;
     }
 }

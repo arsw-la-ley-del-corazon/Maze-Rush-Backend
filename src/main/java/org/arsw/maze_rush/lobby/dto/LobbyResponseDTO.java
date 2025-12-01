@@ -1,5 +1,6 @@
 package org.arsw.maze_rush.lobby.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -9,7 +10,7 @@ import lombok.Data;
     name = "LobbyResponse",
     description = "Respuesta con la información detallada de un lobby en el sistema."
 )
-public class LobbyResponseDTO {
+public class LobbyResponseDTO implements LobbyCommonDTO{
 
     @Schema(
         description = "ID único del lobby (UUID generado automáticamente).",
@@ -36,9 +37,16 @@ public class LobbyResponseDTO {
     private int maxPlayers;
 
     @Schema(
+        description = "Número actual de jugadores conectados en el lobby.",
+        example = "2"
+    )
+    private int currentPlayers;
+
+    @Schema(
         description = "Indica si el lobby es público (true) o privado (false).",
         example = "true"
     )
+    @JsonProperty("isPublic")
     private boolean isPublic;
 
     @Schema(

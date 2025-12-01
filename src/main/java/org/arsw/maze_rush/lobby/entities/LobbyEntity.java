@@ -1,12 +1,12 @@
 package org.arsw.maze_rush.lobby.entities;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.UUID;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.arsw.maze_rush.users.entities.UserEntity;
@@ -54,14 +54,9 @@ public class LobbyEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
     
-    @ManyToMany
-    @JoinTable(
-        name = "lobby_players",
-        joinColumns = @JoinColumn(name = "lobby_id"),
-        inverseJoinColumns = @JoinColumn(name = "user_id")
-    )
+    @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
     @com.fasterxml.jackson.annotation.JsonManagedReference
-    private Set<UserEntity> players = new HashSet<>();
+    private Set<LobbyPlayerEntity> lobbyPlayers = new HashSet<>();
     
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "maze_id")
@@ -77,13 +72,21 @@ public class LobbyEntity {
     }
 
     public void addPlayer(UserEntity user) {
-    this.players.add(user);
-    user.getLobbies().add(this);
+        LobbyPlayerEntity lobbyPlayer = new LobbyPlayerEntity();
+        lobbyPlayer.setLobby(this);
+        lobbyPlayer.setUser(user);
+        lobbyPlayer.setHost(this.creatorUsername.equals(user.getUsername()));
+        this.lobbyPlayers.add(lobbyPlayer);
     }
 
     public void removePlayer(UserEntity user) {
-        this.players.remove(user);
-        user.getLobbies().remove(this);
+        this.lobbyPlayers.removeIf(lp -> lp.getUser().equals(user));
+    }
+    
+    public Set<UserEntity> getPlayers() {
+        return this.lobbyPlayers.stream()
+                .map(LobbyPlayerEntity::getUser)
+                .collect(Collectors.toSet());
     }
 
 

@@ -90,3 +90,4 @@ volumes:
   sonar_extensions:
   sonar_logs:
   redis_data:
+

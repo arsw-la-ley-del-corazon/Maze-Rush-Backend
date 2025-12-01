@@ -14,6 +14,7 @@ import java.security.Principal;
 import java.util.List;
 
 import org.arsw.maze_rush.common.ApiError;
+import org.arsw.maze_rush.users.dto.UpdateProfileRequestDTO;
 import org.arsw.maze_rush.users.dto.UserRequestDTO;
 import org.arsw.maze_rush.users.dto.UserResponseDTO;
 import org.arsw.maze_rush.users.service.UserService;
@@ -244,12 +245,12 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> updateCurrentUser(
         Principal principal,
         @Parameter(description = "Datos a actualizar (campos opcionales)", required = true)
-        @Valid @RequestBody UserRequestDTO request
+        @Valid @RequestBody UpdateProfileRequestDTO request
     ) {
         if (principal == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(userService.updateUser(principal.getName(), request));
+        return ResponseEntity.ok(userService.updateProfile(principal.getName(), request));
     }
 
     @Operation(
