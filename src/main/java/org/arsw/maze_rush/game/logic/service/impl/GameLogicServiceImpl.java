@@ -11,10 +11,13 @@ import org.arsw.maze_rush.powerups.entities.PowerUp;
 import org.arsw.maze_rush.powerups.service.PowerUpService;
 import org.springframework.stereotype.Service;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
+@Slf4j
 public class GameLogicServiceImpl implements GameLogicService {
     private final PowerUpService powerUpService;
     private final GameRepository gameRepository;
@@ -106,6 +109,36 @@ public class GameLogicServiceImpl implements GameLogicService {
         if (destination == '1') {
             throw new IllegalStateException("Movimiento bloqueado por una pared");
         }
+
+        // Verificamos si en la lista de PowerUps activos hay uno en esta posición
+        Iterator<PowerUp> iterator = state.getPowerUps().iterator();
+        while (iterator.hasNext()) {
+            PowerUp pu = iterator.next();
+            if (pu.getX() == newX && pu.getY() == newY) {
+                log.info("Jugador {} recogió {}", player.getPlayer().getUsername(), pu.getType());
+                
+                // Eliminar de la lista lógica
+                iterator.remove();
+            
+                // Obtenemos el layout actual
+                String currentLayout = maze.getLayout();
+                
+                // Lo convertimos a matriz para editarlo
+                char[][] matrix = convertJSONLayoutToMatrix(currentLayout, maze.getWidth(), maze.getHeight());
+                
+                // Borramos la 'P' visualmente 
+                matrix[newY][newX] = '0'; 
+                
+                String newLayout = convertMatrixToJSON(matrix);
+                maze.setLayout(newLayout);
+                
+                gameRepository.save(game); 
+                
+                break; 
+            }
+        }
+
+
 
         // Movimiento válido → actualizar posición
         player.setX(newX);

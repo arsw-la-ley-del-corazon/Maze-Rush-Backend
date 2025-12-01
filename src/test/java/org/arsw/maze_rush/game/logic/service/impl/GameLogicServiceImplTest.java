@@ -169,6 +169,7 @@ class GameLogicServiceImplTest {
 
         GameState st = new GameState();
         st.setPlayerPositions(List.of(pos));
+        st.setPowerUps(new ArrayList<>());
         activeGames.put(gameId, st);
 
         GameEntity game = fakeGameWithLayout("""
@@ -189,6 +190,47 @@ class GameLogicServiceImplTest {
 
         assertEquals(1, updated.getX());
         assertEquals(0, updated.getY());
+    }
+
+    @Test
+    void movePlayer_ShouldCollectPowerUp() {
+        UUID gameId = UUID.randomUUID();
+        String username = "p1";
+
+        PlayerPosition pos = new PlayerPosition(fakeUser(username), 0, 0, 0);
+
+        PowerUp powerUp = PowerUp.builder()
+                .type(org.arsw.maze_rush.powerups.entities.PowerUpType.FREEZE) 
+                .x(1)
+                .y(0)
+                .build();
+
+        GameState st = new GameState();
+        st.setPlayerPositions(List.of(pos));
+        
+        st.setPowerUps(new ArrayList<>(List.of(powerUp))); 
+        
+        activeGames.put(gameId, st);
+
+        GameEntity game = fakeGameWithLayout("0P0\n000");
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(game));
+
+        PlayerMoveRequestDTO req = new PlayerMoveRequestDTO();
+        req.setUsername(username);
+        req.setDirection("RIGHT"); // (0,0) -> (1,0)
+
+        GameState result = service.movePlayer(gameId, req);
+        
+        //  El jugador se movió correctamente
+        PlayerPosition updatedPos = result.getPlayerPositions().get(0);
+        assertEquals(1, updatedPos.getX());
+        assertEquals(0, updatedPos.getY());
+
+        //  El PowerUp desapareció de la lista lógica (Recolección exitosa)
+        assertTrue(result.getPowerUps().isEmpty(), "El powerup debió ser recolectado y eliminado de la lista.");
+        // Verificar que el layout visual cambió de 'P' a '0'
+        String currentLayout = game.getLobby().getMaze().getLayout();
+        assertFalse(currentLayout.contains("P"), "El powerup debió desaparecer visualmente del mapa");
     }
 
 

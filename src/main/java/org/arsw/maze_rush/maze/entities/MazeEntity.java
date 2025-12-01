@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.arsw.maze_rush.common.exceptions.InvalidMazeJsonException;
 import org.arsw.maze_rush.common.exceptions.MazeJsonWriteException;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -74,6 +75,7 @@ public class MazeEntity {
 
     @Transient
     private static final ObjectMapper mapper = new ObjectMapper();
+    @JsonIgnore
     public int[][] getLayoutMatrix() {
         try {
             return mapper.readValue(this.layout, int[][].class);
@@ -81,7 +83,7 @@ public class MazeEntity {
             throw new InvalidMazeJsonException("Error parsing maze layout JSON", e);
         }
     }
-
+    @JsonIgnore
     public void setLayoutMatrix(int[][] matrix) {
         if (matrix == null) throw new MazeJsonWriteException("Matrix is null",null);
 

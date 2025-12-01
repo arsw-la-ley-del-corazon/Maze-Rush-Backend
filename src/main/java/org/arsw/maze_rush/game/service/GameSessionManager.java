@@ -3,6 +3,7 @@ package org.arsw.maze_rush.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.game.dto.PlayerGameStateDTO;
 import org.arsw.maze_rush.game.dto.PositionDTO;
+import org.arsw.maze_rush.powerups.entities.PowerUp;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -26,6 +27,8 @@ public class GameSessionManager {
     
     // Map: lobbyCode -> mazeId (UUID del laberinto generado)
     private final Map<String, String> gameMazes = new ConcurrentHashMap<>();
+
+    private final Map<String, Map<String, PowerUp>> gamePowerUps = new ConcurrentHashMap<>();
 
     /**
      * Registra un jugador en una sesión de juego
@@ -135,6 +138,7 @@ public class GameSessionManager {
         gameStates.remove(lobbyCode);
         gameStartTimes.remove(lobbyCode);
         gameMazes.remove(lobbyCode);
+        gamePowerUps.remove(lobbyCode);
         log.info("Sesión de juego {} limpiada manualmente", lobbyCode);
     }
 
@@ -179,4 +183,34 @@ public class GameSessionManager {
     public boolean hasMaze(String lobbyCode) {
         return gameMazes.containsKey(lobbyCode);
     }
+
+    /**
+    * Guarda los powerups generados al inicio de la partida en el lobby especificado.
+    */
+    public void setPowerUps(String lobbyCode, List<PowerUp> powerUps) {
+        Map<String, PowerUp> powerUpMap = new ConcurrentHashMap<>();     
+        for (PowerUp p : powerUps) {
+            String key = p.getX() + "," + p.getY();
+            powerUpMap.put(key, p);
+        }
+        gamePowerUps.put(lobbyCode, powerUpMap);
+        log.info("Guardados {} powerups para la sesión {}", powerUps.size(), lobbyCode);
+    }
+
+    /**
+     * Verifica si hay un powerup en la posición (x, y).
+     * Si existe, lo ELIMINA del mapa (recolección) y lo devuelve.
+     */
+
+    public PowerUp checkAndCollectPowerUp(String lobbyCode, int x, int y) {
+        Map<String, PowerUp> powerUpMap = gamePowerUps.get(lobbyCode);
+            
+        if (powerUpMap != null) {
+            String key = x + "," + y;
+            return powerUpMap.remove(key);
+        }
+        return null;
+    }
+
+
 }
