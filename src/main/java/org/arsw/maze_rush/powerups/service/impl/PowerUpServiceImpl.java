@@ -2,10 +2,10 @@ package org.arsw.maze_rush.powerups.service.impl;
 
 import org.arsw.maze_rush.common.exceptions.InvalidMazeLayoutException;
 import org.arsw.maze_rush.game.logic.entities.PlayerPosition;
+import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.arsw.maze_rush.powerups.entities.PowerUp;
 import org.arsw.maze_rush.powerups.entities.PowerUpType;
 import org.arsw.maze_rush.powerups.service.PowerUpService;
-import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -14,55 +14,87 @@ import java.util.*;
 @Service
 public class PowerUpServiceImpl implements PowerUpService {
 
-    private final  SecureRandom random = new  SecureRandom();
+    private final SecureRandom random = new SecureRandom();
+
+    private static final Map<PowerUpType, Integer> POWER_UP_LIMITS = Map.of(
+        PowerUpType.CLEAR_FOG, 1,
+        PowerUpType.FREEZE, 2,   
+        PowerUpType.CONFUSION, 1 
+    );
+
+    @Override
+    public List<PowerUp> generatePowerUps(MazeEntity maze) {
+        return generatePowerUps(maze, null);
+    }
 
     @Override
     public List<PowerUp> generatePowerUps(MazeEntity maze, List<PlayerPosition> players) {
-
         validateLayoutNotEmpty(maze);
 
-        int count = random.nextInt(6) + 5; 
+        List<PowerUpType> typeBag = createTypeBag();
+        
+        Collections.shuffle(typeBag, random);
+
         List<PowerUp> powerUps = new ArrayList<>();
-        Set<String> used = new HashSet<>();
+        Set<String> usedPositions = new HashSet<>();
 
         int w = maze.getWidth();
         int h = maze.getHeight();
-
         String[][] layout = parseMatrix(maze.getLayout(), w, h);
-        used.add(maze.getStartX() + "," + maze.getStartY());
-        used.add(maze.getGoalX() + "," + maze.getGoalY());
+
+        usedPositions.add(maze.getStartX() + "," + maze.getStartY());
+        usedPositions.add(maze.getGoalX() + "," + maze.getGoalY());
         if (players != null) {
             for (PlayerPosition p : players) {
-                used.add(p.getX() + "," + p.getY());
+                usedPositions.add(p.getX() + "," + p.getY());
             }
         }
 
-        while (powerUps.size() < count) {
+        while (!typeBag.isEmpty()) {
+            int attempts = 0;
+            boolean placed = false;
 
-            int x = random.nextInt(w);
-            int y = random.nextInt(h);
+            while (attempts < 20 && !placed) {
+                int x = random.nextInt(w);
+                int y = random.nextInt(h);
+                validatePosition(x, y, w, h);
 
-            validatePosition(x, y, w, h);
+                String key = x + "," + y;
+                boolean isWall = !isFree(layout, x, y);
+                boolean isOccupied = usedPositions.contains(key);
 
-            String key = x + "," + y;
-
-            boolean invalidCell = !isFree(layout, x, y) || used.contains(key);
-
-            if (invalidCell) continue;
-
-            used.add(key);
-
-            powerUps.add(
-                    PowerUp.builder()
-                            .type(randomType())
+                if (!isWall && !isOccupied) {
+                    PowerUpType typeToPlace = typeBag.remove(0); 
+                    
+                    usedPositions.add(key);
+                    powerUps.add(
+                        PowerUp.builder()
+                            .type(typeToPlace)
                             .duration(randomDuration())
                             .x(x)
                             .y(y)
                             .build()
-            );
+                    );
+                    placed = true;
+                }
+                attempts++;
+            }
+            
+            if (!placed) break; 
         }
 
         return powerUps;
+    }
+
+
+    private List<PowerUpType> createTypeBag() {
+        List<PowerUpType> bag = new ArrayList<>();
+        POWER_UP_LIMITS.forEach((type, count) -> {
+            for (int i = 0; i < count; i++) {
+                bag.add(type);
+            }
+        });
+        return bag;
     }
 
     private void validateLayoutNotEmpty(MazeEntity maze) {
@@ -73,19 +105,12 @@ public class PowerUpServiceImpl implements PowerUpService {
 
     private void validatePosition(int x, int y, int w, int h) {
         if (x < 0 || x >= w || y < 0 || y >= h) {
-            throw new InvalidMazeLayoutException(
-                    "Coordenada inválida generada (" + x + "," + y + ") fuera de límites."
-            );
+            throw new InvalidMazeLayoutException("Coordenada fuera de límites.");
         }
     }
 
     private boolean isFree(String[][] mat, int x, int y) {
-        return mat[y][x].equals("0");
-    }
-
-    private PowerUpType randomType() {
-        PowerUpType[] values = PowerUpType.values();
-        return values[random.nextInt(values.length)];
+        return "0".equals(mat[y][x]);
     }
 
     private int randomDuration() {
@@ -93,44 +118,24 @@ public class PowerUpServiceImpl implements PowerUpService {
     }
 
     private String[][] parseMatrix(String layout, int width, int height) {
-
         String[] rows = layout.split("\n");
-
         if (rows.length != height) {
             throw new InvalidMazeLayoutException(
-                    "El número de filas del layout no coincide con la altura declarada del laberinto."
+                "El layout tiene " + rows.length + " filas, pero se esperaban " + height
             );
         }
-
+        
         String[][] matrix = new String[height][width];
-
         for (int y = 0; y < height; y++) {
-
-            if (rows[y].length() != width) {
-                throw new InvalidMazeLayoutException(
-                        "Fila " + y + " tiene longitud " + rows[y].length() +
-                                " pero se esperaba " + width
-                );
-            }
-
+            String row = rows[y].trim();
             for (int x = 0; x < width; x++) {
-                char c = rows[y].charAt(x);
-
-                if (c != '0' && c != '1') {
-                    throw new InvalidMazeLayoutException(
-                            "Caracter inválido '" + c + "' encontrado en (" + x + "," + y + ")."
-                    );
+                if (x < row.length()) {
+                    matrix[y][x] = String.valueOf(row.charAt(x));
+                } else {
+                    matrix[y][x] = "1";
                 }
-
-                matrix[y][x] = String.valueOf(c);
             }
         }
-
         return matrix;
     }
-    @Override
-    public List<PowerUp> generatePowerUps(MazeEntity maze) {
-        return generatePowerUps(maze, null);
-    }
-
 }

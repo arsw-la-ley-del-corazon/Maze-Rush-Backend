@@ -2,8 +2,9 @@ version: '3.8'
 
 services:
 
-  # BASE DE DATOS PRINCIPAL DEL JUEGO 
-
+  # ----------------------------------------------------
+  # PostgreSQL Maze Rush
+  # ----------------------------------------------------
   postgres:
     image: postgres:15
     container_name: maze_rush_postgres
@@ -18,35 +19,53 @@ services:
     networks:
       - maze_rush_network
 
-
-  # BASE DE DATOS PARA SONARQUBE
-
-  sonar-db:
+  # ----------------------------------------------------
+  # PostgreSQL para SonarQube
+  # ----------------------------------------------------
+  sonar_postgres:
     image: postgres:15
     container_name: sonar_postgres
+    restart: always
     environment:
       POSTGRES_USER: sonar
       POSTGRES_PASSWORD: sonar
-      POSTGRES_DB: sonar
+      POSTGRES_DB: sonarqube
+    ports:
+      - "5434:5432"  # Para no chocar con tu postgres del Maze Rush
     volumes:
-      - sonar_db:/var/lib/postgresql/data
+      - sonar_postgres_data:/var/lib/postgresql/data
     networks:
       - maze_rush_network
 
-
-  # SONARQUBE
-
-  sonarqube:
-    image: sonarqube:lts
-    container_name: sonarqube
-    depends_on:
-      - sonar-db
+  # ----------------------------------------------------
+  # Redis para Maze Rush
+  # ----------------------------------------------------
+  redis:
+    image: redis:7
+    container_name: maze_rush_redis
+    restart: always
     ports:
-      - "9000:9000"
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - maze_rush_network
+
+  # ----------------------------------------------------
+  # SonarQube
+  # ----------------------------------------------------
+  sonarqube:
+    image: sonarqube:latest
+    container_name: sonarqube
+    restart: always
+    depends_on:
+      - sonar_postgres
     environment:
-      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_URL: jdbc:postgresql://sonar_postgres:5432/sonarqube
       SONAR_JDBC_USERNAME: sonar
       SONAR_JDBC_PASSWORD: sonar
+    ports:
+      - "9001:9000"  # Dashboard SonarQube
     volumes:
       - sonar_data:/opt/sonarqube/data
       - sonar_extensions:/opt/sonarqube/extensions
@@ -54,18 +73,20 @@ services:
     networks:
       - maze_rush_network
 
-
-# NETWORKS
-
+# ----------------------------------------------------
+# Redes
+# ----------------------------------------------------
 networks:
   maze_rush_network:
     driver: bridge
 
-# VOLUMES
-
+# ----------------------------------------------------
+# Volúmenes
+# ----------------------------------------------------
 volumes:
   postgres_data:
-  sonar_db:
+  sonar_postgres_data:
   sonar_data:
   sonar_extensions:
   sonar_logs:
+  redis_data:
