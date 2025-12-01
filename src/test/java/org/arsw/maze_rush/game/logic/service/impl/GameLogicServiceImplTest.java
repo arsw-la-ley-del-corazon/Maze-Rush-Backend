@@ -240,7 +240,57 @@ class GameLogicServiceImplTest {
 
         verify(gameSessionManager, times(2)).applyEffect(lobbyCode,username,PowerUpType.CLEAR_FOG, 5);
     }
-    
+
+    /**Validación de Power-Up Fantasma.
+     * 1. Player 1 se mueve a (1,0) y recoge 'CLEAR_FOG'.
+     * 2. Player 2 se mueve a (1,0) inmediatamente después.
+     * 3. Player 2 NO debe recoger nada 
+     */
+    @Test
+    void movePlayer_PhantomPowerUp_ShouldNotBeCollectedTwice() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+        
+        // Estado Player 1 (en 0,0)
+        PlayerGameStateDTO p1State = new PlayerGameStateDTO("player1", new PositionDTO(0, 0));
+        when(gameSessionManager.getPlayer(lobbyCode, "player1")).thenReturn(p1State);
+        
+        // Estado Player 2 (en 2,0)
+        PlayerGameStateDTO p2State = new PlayerGameStateDTO("player2", new PositionDTO(2, 0));
+        when(gameSessionManager.getPlayer(lobbyCode, "player2")).thenReturn(p2State);
+
+        PowerUp powerUp = PowerUp.builder()
+                .type(PowerUpType.CLEAR_FOG)
+                .duration(5)
+                .x(1).y(0)
+                .build();
+
+        // Player 1 -> Devuelve el item.
+        // Player 2 -> Devuelve null (ya se borró).
+        when(gameSessionManager.checkAndCollectPowerUp(lobbyCode, 1, 0))
+                .thenReturn(powerUp)  
+                .thenReturn(null);    
+
+        //  Player 1 recoge el ítem ---
+        service.movePlayer(gameId, new PlayerMoveRequestDTO("player1", "RIGHT")); // Va a (1,0)
+
+        // Se aplicó el efecto a Player 1
+        verify(gameSessionManager).applyEffect(
+            lobbyCode, "player1", PowerUpType.CLEAR_FOG, 5);
+            
+        // Se guardó en DB 
+        verify(gameRepository, times(1)).save(gameEntity);
+
+
+        // Player 2 pasa por la misma casilla 
+        service.movePlayer(gameId, new PlayerMoveRequestDTO("player2", "LEFT")); 
+
+        // NO se aplicó ningún efecto a Player 2
+        verify(gameSessionManager, never()).applyEffect(
+            eq(lobbyCode), eq("player2"), any(), anyInt());
+        
+        // No se debió guardar en DB una segunda vez 
+        verify(gameRepository, times(1)).save(gameEntity);
+    }
 
 
     private UserEntity fakeUser(String username) {
