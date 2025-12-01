@@ -20,6 +20,8 @@ import java.util.Map;
 @Controller
 @Slf4j
 public class LobbyWebSocketController {
+    private static final String USERNAME_KEY = "username";
+
 
     private final LobbyService lobbyService;
 
@@ -41,7 +43,7 @@ public class LobbyWebSocketController {
         
         String message = payload.get("message");
         // Intentar obtener username del payload primero, luego del principal
-        String username = payload.get("username");
+        String username = payload.get(USERNAME_KEY);
         if (username == null && principal != null) {
             username = principal.getName();
         }
@@ -71,7 +73,7 @@ public class LobbyWebSocketController {
             Principal principal) {
         
         // Intentar obtener username del payload primero, luego del principal
-        String username = payload.get("username");
+        String username = payload.get(USERNAME_KEY);
         if (username == null && principal != null) {
             username = principal.getName();
         }
@@ -86,7 +88,7 @@ public class LobbyWebSocketController {
         
         // Retornar el estado actualizado para broadcast
         return Map.of(
-            "username", username,
+            USERNAME_KEY, username,
             "isReady", isReady
         );
     }
@@ -103,7 +105,7 @@ public class LobbyWebSocketController {
             Principal principal) {
         
         // Intentar obtener username del payload primero, luego del principal
-        String username = payload.get("username");
+        String username = payload.get(USERNAME_KEY);
         if (username == null && principal != null) {
             username = principal.getName();
         }
@@ -128,7 +130,7 @@ public class LobbyWebSocketController {
             SimpMessageHeaderAccessor headerAccessor) {
         
         // Intentar obtener username del payload primero, luego del principal
-        String username = payload.get("username");
+        String username = payload.get(USERNAME_KEY);
         if (username == null && principal != null) {
             username = principal.getName();
         }
@@ -141,7 +143,7 @@ public class LobbyWebSocketController {
         log.info("Usuario {} conectado a WebSocket del lobby {}", username, code);
         
         // Guardar información en la sesión WebSocket
-        headerAccessor.getSessionAttributes().put("username", username);
+        headerAccessor.getSessionAttributes().put(USERNAME_KEY, username);
         headerAccessor.getSessionAttributes().put("lobbyCode", code);
         
         // Notificar a todos los clientes conectados la lista actualizada de jugadores

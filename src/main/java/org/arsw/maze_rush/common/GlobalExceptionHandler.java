@@ -1,7 +1,6 @@
 package org.arsw.maze_rush.common;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.arsw.maze_rush.common.exceptions.BadRequestException;
 import org.arsw.maze_rush.common.exceptions.ConflictException;

@@ -24,15 +24,16 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
-    
-    @Autowired(required = false)
     private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter, 
-            CorsConfigurationSource corsConfigurationSource) {
+            CorsConfigurationSource corsConfigurationSource,
+            @Autowired(required = false) OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler){
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
+        
     }
 
     @Bean

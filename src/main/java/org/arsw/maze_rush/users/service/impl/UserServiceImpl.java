@@ -1,7 +1,6 @@
 package org.arsw.maze_rush.users.service.impl;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.arsw.maze_rush.common.exceptions.ConflictException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
@@ -17,8 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserServiceImpl implements UserService {
-    private static final String USER_NOT_FOUND = "Usuario no encontrado: ";
 
+    private static final String USER_NOT_FOUND = "Usuario no encontrado: ";
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -27,10 +26,12 @@ public class UserServiceImpl implements UserService {
         this.userRepository = userRepository;
     }
 
+    // CONSULTAS
     @Override
     @Transactional(readOnly = true)
     public List<UserResponseDTO> findAllUsers() {
-        return userRepository.findAll().stream()
+        return userRepository.findAll()
+                .stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -38,8 +39,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserResponseDTO findUserByUsername(String username) {
-        UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
-            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+        UserEntity entity = findByUsernameOrThrow(username);
         return toResponse(entity);
     }
 
@@ -47,121 +47,149 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public UserResponseDTO findUserByEmail(String email) {
         UserEntity entity = userRepository.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new NotFoundException("Usuario no encontrado con email: " + email));
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado con email: " + email));
         return toResponse(entity);
     }
 
+    // CREACIÓN
     @Override
     @Transactional
     public UserResponseDTO createUser(UserRequestDTO user) {
-        // Normalizar y validar unicidad
-        String username = user.getUsername().trim();
-        String email = user.getEmail().trim().toLowerCase();
 
-        if (userRepository.existsByUsernameIgnoreCase(username)) {
-            throw new ConflictException("El username ya está en uso");
-        }
-        if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new ConflictException("El email ya está en uso");
-        }
+        String username = normalize(user.getUsername());
+        String email = normalizeEmail(user.getEmail());
+
+        ensureUsernameAvailable(username);
+        ensureEmailAvailable(email);
 
         UserEntity entity = new UserEntity();
         entity.setUsername(username);
         entity.setEmail(email);
         entity.setPassword(passwordEncoder.encode(user.getPassword()));
-        // score=0, level=1 por defecto
-        entity = userRepository.save(entity);
-        return toResponse(entity);
-    }
 
+        return toResponse(userRepository.save(entity));
+    }
+    // UPDATE USER (ADMIN)
     @Override
     @Transactional
     public UserResponseDTO updateUser(String username, UserRequestDTO user) {
-        UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
-            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+        UserEntity entity = findByUsernameOrThrow(username);
 
-        // Actualización parcial: username/email si cambian y no colisionan
-        if (user.getUsername() != null && !user.getUsername().isBlank() &&
-            !entity.getUsername().equalsIgnoreCase(user.getUsername().trim())) {
-            String newUsername = user.getUsername().trim();
-            if (userRepository.existsByUsernameIgnoreCase(newUsername)) {
-                throw new ConflictException("El username ya está en uso");
-            }
-            entity.setUsername(newUsername);
-        }
+        applyUsernameChange(entity, user.getUsername());
+        applyEmailChange(entity, user.getEmail());
 
-        if (user.getEmail() != null && !user.getEmail().isBlank() &&
-            !entity.getEmail().equalsIgnoreCase(user.getEmail().trim())) {
-            String newEmail = user.getEmail().trim().toLowerCase();
-            if (userRepository.existsByEmailIgnoreCase(newEmail)) {
-                throw new ConflictException("El email ya está en uso");
-            }
-            entity.setEmail(newEmail);
-        }
-
-        if (user.getPassword() != null && !user.getPassword().isBlank()) {
+        if (isPresent(user.getPassword())) {
             entity.setPassword(passwordEncoder.encode(user.getPassword()));
         }
 
-        entity = userRepository.save(entity);
-        return toResponse(entity);
+        return toResponse(userRepository.save(entity));
     }
 
+    // DELETE
     @Override
     @Transactional
     public void deleteUser(String username) {
-        UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
-            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+        UserEntity entity = findByUsernameOrThrow(username);
         userRepository.delete(entity);
     }
 
+    // UPDATE PROFILE (PLAYER EDITS THEIR PROFILE)
     @Override
     @Transactional
-    public UserResponseDTO updateProfile(String username, UpdateProfileRequestDTO profileData) {
-        UserEntity entity = userRepository.findByUsernameIgnoreCase(username)
-            .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+    public UserResponseDTO updateProfile(String username, UpdateProfileRequestDTO data) {
 
-        // Actualizar username si se proporcionó
-        if (profileData.getUsername() != null && !profileData.getUsername().isBlank()) {
-            String newUsername = profileData.getUsername().trim();
-            if (!entity.getUsername().equalsIgnoreCase(newUsername)) {
-                if (userRepository.existsByUsernameIgnoreCase(newUsername)) {
-                    throw new ConflictException("El username ya está en uso");
-                }
-                entity.setUsername(newUsername);
-            }
-        }
+        UserEntity entity = findByUsernameOrThrow(username);
 
-        // Actualizar email si se proporcionó
-        if (profileData.getEmail() != null && !profileData.getEmail().isBlank()) {
-            String newEmail = profileData.getEmail().trim().toLowerCase();
-            if (!entity.getEmail().equalsIgnoreCase(newEmail)) {
-                if (userRepository.existsByEmailIgnoreCase(newEmail)) {
-                    throw new ConflictException("El email ya está en uso");
-                }
-                entity.setEmail(newEmail);
-            }
-        }
+        // Validaciones
+        validateProfileChanges(entity, data);
 
-        // Actualizar bio
-        if (profileData.getBio() != null) {
-            entity.setBio(profileData.getBio().trim());
-        }
+        // Aplicar actualizaciones
+        applyProfileChanges(entity, data);
 
-        // Actualizar avatarColor
-        if (profileData.getAvatarColor() != null && !profileData.getAvatarColor().isBlank()) {
-            entity.setAvatarColor(profileData.getAvatarColor().trim());
-        }
-
-        // Actualizar preferredMazeSize
-        if (profileData.getPreferredMazeSize() != null && !profileData.getPreferredMazeSize().isBlank()) {
-            entity.setPreferredMazeSize(profileData.getPreferredMazeSize().trim());
-        }
-
-        entity = userRepository.save(entity);
-        return toResponse(entity);
+        return toResponse(userRepository.save(entity));
     }
 
+    // VALIDATIONS
+    private void validateProfileChanges(UserEntity entity, UpdateProfileRequestDTO data) {
+
+        if (isUpdated(data.getUsername(), entity.getUsername())) {
+            ensureUsernameAvailable(data.getUsername().trim());
+        }
+
+        if (isUpdated(data.getEmail(), entity.getEmail())) {
+            ensureEmailAvailable(data.getEmail().trim());
+        }
+    }
+
+    private void ensureUsernameAvailable(String username) {
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new ConflictException("El username ya está en uso");
+        }
+    }
+
+    private void ensureEmailAvailable(String email) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ConflictException("El email ya está en uso");
+        }
+    }
+
+    private boolean isUpdated(String newValue, String oldValue) {
+        return newValue != null && !newValue.isBlank() && !newValue.equalsIgnoreCase(oldValue);
+    }
+
+    private boolean isPresent(String value) {
+        return value != null && !value.isBlank();
+    }
+
+  
+    // APPLY CHANGES
+    private void applyProfileChanges(UserEntity entity, UpdateProfileRequestDTO data) {
+
+        applyUsernameChange(entity, data.getUsername());
+        applyEmailChange(entity, data.getEmail());
+
+        if (data.getBio() != null) {
+            entity.setBio(data.getBio().trim());
+        }
+
+        if (isPresent(data.getAvatarColor())) {
+            entity.setAvatarColor(data.getAvatarColor().trim());
+        }
+
+        if (isPresent(data.getPreferredMazeSize())) {
+            entity.setPreferredMazeSize(data.getPreferredMazeSize().trim());
+        }
+    }
+
+    private void applyUsernameChange(UserEntity entity, String newUsername) {
+        if (isUpdated(newUsername, entity.getUsername())) {
+            ensureUsernameAvailable(newUsername.trim());
+            entity.setUsername(newUsername.trim());
+        }
+    }
+
+    private void applyEmailChange(UserEntity entity, String newEmail) {
+        if (isUpdated(newEmail, entity.getEmail())) {
+            ensureEmailAvailable(newEmail.trim().toLowerCase());
+            entity.setEmail(newEmail.trim().toLowerCase());
+        }
+    }
+
+    // HELPERS
+    private UserEntity findByUsernameOrThrow(String username) {
+        return userRepository.findByUsernameIgnoreCase(username)
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + username));
+    }
+
+    private String normalize(String value) {
+        return value.trim();
+    }
+
+    private String normalizeEmail(String value) {
+        return value.trim().toLowerCase();
+    }
+
+    // DTO MAPPING
     private UserResponseDTO toResponse(UserEntity entity) {
         UserResponseDTO dto = new UserResponseDTO();
         dto.setId(entity.getId() != null ? entity.getId().toString() : null);

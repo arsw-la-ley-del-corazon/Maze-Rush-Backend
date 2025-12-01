@@ -23,3 +23,4 @@ public class GameEventDTO {
         this.timestamp = Instant.now();
     }
 }
+

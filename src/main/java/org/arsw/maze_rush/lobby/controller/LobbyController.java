@@ -1,12 +1,13 @@
 package org.arsw.maze_rush.lobby.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+
+import org.arsw.maze_rush.lobby.dto.LobbyCommonDTO;
 import org.arsw.maze_rush.lobby.dto.LobbyRequestDTO;
 import org.arsw.maze_rush.lobby.dto.LobbyResponseDTO;
 import org.arsw.maze_rush.lobby.dto.LobbyWithPlayersResponseDTO;
@@ -49,38 +50,22 @@ public class LobbyController {
     )
     @PostMapping("/create")
     public ResponseEntity<LobbyWithPlayersResponseDTO> createLobby(
-            @Valid @RequestBody
-            @Parameter(description = "Datos necesarios para crear un lobby", required = true)
-            LobbyRequestDTO request) {
+            @Valid @RequestBody LobbyRequestDTO request) {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String creatorUsername = authentication.getName();
 
         LobbyEntity lobby = lobbyService.createLobby(
-            request.getMazeSize(),
-            request.getMaxPlayers(),
-            request.isPublic(),
-            request.getStatus(),
-            creatorUsername
+                request.getMazeSize(),
+                request.getMaxPlayers(),
+                request.isPublic(),
+                request.getStatus(),
+                creatorUsername
         );
 
-        LobbyWithPlayersResponseDTO response = new LobbyWithPlayersResponseDTO();
-        response.setId(lobby.getId().toString());
-        response.setCode(lobby.getCode());
-        response.setMazeSize(lobby.getMazeSize());
-        response.setMaxPlayers(lobby.getMaxPlayers());
-        response.setPublic(lobby.isPublic());
-        response.setStatus(lobby.getStatus());
-        response.setCreatorUsername(lobby.getCreatorUsername());
-        response.setCreatedAt(lobby.getCreatedAt().toString());
-        response.setPlayers(
-            lobby.getPlayers().stream()
-                    .map(UserEntity::getUsername)
-                    .toList()
-        );
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(toLobbyWithPlayersDTO(lobby));
     }
+
 
 
     @Operation(
@@ -96,7 +81,7 @@ public class LobbyController {
     public ResponseEntity<List<LobbyResponseDTO>> getAllLobbies() {
         List<LobbyResponseDTO> response = lobbyService.getAllLobbies()
                 .stream()
-                .map(this::mapToDTO)
+                .map(this::toLobbyResponseDTO)
                 .toList();
         return ResponseEntity.ok(response);
     }
@@ -113,29 +98,13 @@ public class LobbyController {
         }
     )
     @GetMapping("/{code}")
-    public ResponseEntity<LobbyWithPlayersResponseDTO> getLobbyByCode(
-            @Parameter(description = "Código único de 6 caracteres del lobby", example = "AB12CD")
-            @PathVariable String code) {
+    public ResponseEntity<LobbyWithPlayersResponseDTO> getLobbyByCode(@PathVariable String code) {
 
         LobbyEntity lobby = lobbyService.getLobbyByCode(code);
 
-        LobbyWithPlayersResponseDTO response = new LobbyWithPlayersResponseDTO();
-        response.setId(lobby.getId().toString());
-        response.setCode(lobby.getCode());
-        response.setMazeSize(lobby.getMazeSize());
-        response.setMaxPlayers(lobby.getMaxPlayers());
-        response.setPublic(lobby.isPublic());
-        response.setStatus(lobby.getStatus());
-        response.setCreatorUsername(lobby.getCreatorUsername());
-        response.setCreatedAt(lobby.getCreatedAt().toString());
-        response.setPlayers(
-            lobby.getPlayers().stream()
-                    .map(player -> player.getUsername())
-                    .toList()
-        );
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(toLobbyWithPlayersDTO(lobby));
     }
+
 
     @Operation(
         summary = "Remover jugador de un lobby",
@@ -154,32 +123,18 @@ public class LobbyController {
         summary = "Unirse a un lobby usando su código",
         description = "Permite a un usuario unirse a un lobby existente usando el código del lobby."
     )
+
     @PostMapping("/join/{code}")
-    public ResponseEntity<LobbyWithPlayersResponseDTO> joinLobby(
-            @PathVariable String code) {
-        
+    public ResponseEntity<LobbyWithPlayersResponseDTO> joinLobby(@PathVariable String code) {
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
-        LobbyEntity lobby = lobbyService.joinLobbyByCode(code,username);
+        LobbyEntity lobby = lobbyService.joinLobbyByCode(code, username);
 
-        LobbyWithPlayersResponseDTO response = new LobbyWithPlayersResponseDTO();
-        response.setId(lobby.getId().toString());
-        response.setCode(lobby.getCode());
-        response.setMazeSize(lobby.getMazeSize());
-        response.setMaxPlayers(lobby.getMaxPlayers());
-        response.setPublic(lobby.isPublic());
-        response.setStatus(lobby.getStatus());
-        response.setCreatorUsername(lobby.getCreatorUsername());
-        response.setCreatedAt(lobby.getCreatedAt().toString());
-        response.setPlayers(
-            lobby.getPlayers().stream()
-                    .map(UserEntity::getUsername)
-                    .toList()
-        );
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(toLobbyWithPlayersDTO(lobby));
     }
+
 
     @Operation(
         summary = "Salir de un lobby",
@@ -197,24 +152,42 @@ public class LobbyController {
 
 
 
+    private LobbyWithPlayersResponseDTO toLobbyWithPlayersDTO(LobbyEntity lobby) {
+        LobbyWithPlayersResponseDTO dto = new LobbyWithPlayersResponseDTO();
+        fillCommonFields(lobby, dto);
 
+        dto.setPlayers(
+            lobby.getPlayers().stream()
+                    .map(UserEntity::getUsername)
+                    .toList()
+        );
 
-    
-    private LobbyResponseDTO mapToDTO(LobbyEntity lobby) {
+        return dto;
+    }
+
+    private LobbyResponseDTO toLobbyResponseDTO(LobbyEntity lobby) {
         LobbyResponseDTO dto = new LobbyResponseDTO();
+        fillCommonFields(lobby, dto);
+        dto.setCurrentPlayers(lobby.getPlayers().size());
+        return dto;
+    }
+
+    private void fillCommonFields(LobbyEntity lobby, LobbyCommonDTO dto) {
         dto.setId(lobby.getId().toString());
         dto.setCode(lobby.getCode());
         dto.setMazeSize(lobby.getMazeSize());
         dto.setMaxPlayers(lobby.getMaxPlayers());
-        dto.setCurrentPlayers(lobby.getPlayers().size());  // Número actual de jugadores
-        dto.setPublic(lobby.isPublic());  // Lombok genera isPublic() para boolean, y setPublic() en el DTO
+        dto.setPublic(lobby.isPublic());
         dto.setStatus(lobby.getStatus());
         dto.setCreatorUsername(lobby.getCreatorUsername());
         dto.setCreatedAt(lobby.getCreatedAt().toString());
-        return dto;
     }
+
+
+    
 
 
 
 
 }
+

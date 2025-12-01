@@ -30,13 +30,14 @@
         <lombok.version>1.18.34</lombok.version>
         <sonar.projectKey>Maze-Rush-Backend</sonar.projectKey>
         <sonar.projectName>Maze Rush Backend</sonar.projectName>
-        <sonar.host.url>http://localhost:9000</sonar.host.url>
-        <sonar.token>sqa_a04d2a66029684dab6b3b320c0b8866586a1d0eb</sonar.token>
+        <sonar.host.url>http://localhost:9001</sonar.host.url>
+        <sonar.login>sqa_51b8913c8e42685c882c3ad0640a266de05e0a67</sonar.login>
 
         <sonar.sources>src/main/java</sonar.sources>
         <sonar.tests>src/test/java</sonar.tests>
         <sonar.java.binaries>target/classes</sonar.java.binaries>
-
+        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+         <sonar.coverage.jacoco.xmlReportPaths>${project.reporting.outputDirectory}/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 
 
     </properties>
@@ -65,7 +66,8 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <version>1.18.30</version>
+            <scope>provided</scope> 
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -81,13 +83,14 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <version>5.7.0</version>
             <scope>test</scope>
         </dependency>
+
+
 
         <!-- WebSocket support -->
         <dependency>
@@ -181,7 +184,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
+                            <version>1.18.30</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
@@ -198,6 +201,13 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version> <configuration>
+                    <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine> 
+                </configuration>
+            </plugin>
 
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
@@ -207,15 +217,16 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.12</version> 
                 <executions>
                     <execution>
+                        <id>default-prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
                     <execution>
-                        <id>report</id>
+                        <id>default-report</id>
                         <phase>test</phase>
                         <goals>
                             <goal>report</goal>

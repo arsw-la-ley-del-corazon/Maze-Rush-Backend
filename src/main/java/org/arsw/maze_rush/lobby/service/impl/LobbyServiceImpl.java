@@ -34,6 +34,9 @@ public class LobbyServiceImpl implements LobbyService {
     private static final String LOBBY_NOT_FOUND = "No se encontró el lobby con el código: ";
     private static final String USER_NOT_FOUND = "Usuario no encontrado: ";
     private static final String REDIS_LOBBY_PREFIX = "lobby:";
+    private static final String LOBBY_TOPIC = "/topic/lobby/";
+
+
 
     private final UserRepository userRepository;
     private final LobbyRepository lobbyRepository;
@@ -238,7 +241,7 @@ public class LobbyServiceImpl implements LobbyService {
             deleteFromRedis(code);
             
             // Enviar evento de lobby eliminado
-            messagingTemplate.convertAndSend("/topic/lobby/" + code, 
+            messagingTemplate.convertAndSend(LOBBY_TOPIC + code, 
                 Map.of("type", "lobby_deleted", "code", code));
             return;
         }
@@ -349,7 +352,7 @@ public class LobbyServiceImpl implements LobbyService {
                     .map(UserEntity::getUsername)
                     .collect(Collectors.toList()));
             
-            messagingTemplate.convertAndSend("/topic/lobby/" + code + "/game", gameStartEvent);
+            messagingTemplate.convertAndSend(LOBBY_TOPIC + code + "/game", gameStartEvent);
             log.info("Juego iniciado en lobby {} con {} jugadores y laberinto {}", 
                 code, lobby.getPlayers().size(), maze.getId());
         } catch (Exception e) {
@@ -374,7 +377,7 @@ public class LobbyServiceImpl implements LobbyService {
             event.setPlayerCount(playerUsernames.size());
             event.setMaxPlayers(lobby.getMaxPlayers());
 
-            messagingTemplate.convertAndSend("/topic/lobby/" + code + "/players", event);
+            messagingTemplate.convertAndSend(LOBBY_TOPIC + code + "/players", event);
             log.info("Notificación de actualización de jugadores enviada para lobby {}", code);
         } catch (Exception e) {
             log.error("Error al notificar actualización de jugadores para lobby {}: {}", code, e.getMessage());
@@ -397,7 +400,7 @@ public class LobbyServiceImpl implements LobbyService {
             event.setPlayerCount(playerUsernames.size());
             event.setMaxPlayers(lobby.getMaxPlayers());
 
-            messagingTemplate.convertAndSend("/topic/lobby/" + code + "/players", event);
+            messagingTemplate.convertAndSend(LOBBY_TOPIC + code + "/players", event);
         } catch (Exception e) {
             // Log error pero no fallar la operación principal
             log.error("Error al enviar evento de jugador para lobby {}: {}", code, e.getMessage());

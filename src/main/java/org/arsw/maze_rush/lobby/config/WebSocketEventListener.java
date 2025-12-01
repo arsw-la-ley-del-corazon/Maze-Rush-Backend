@@ -81,7 +81,7 @@ public class WebSocketEventListener {
         }
     }
 
-    private String extractLobbyCodeFromDestination(String destination) {
+    String extractLobbyCodeFromDestination(String destination) {
         // Formato esperado: /topic/lobby/{code}/...
         if (destination == null || !destination.startsWith("/topic/lobby/")) {
             return null;

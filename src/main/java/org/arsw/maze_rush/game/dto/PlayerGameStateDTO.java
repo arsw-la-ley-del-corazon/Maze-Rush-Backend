@@ -1,5 +1,8 @@
 package org.arsw.maze_rush.game.dto;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -28,8 +31,19 @@ public class PlayerGameStateDTO {
      * Genera un color consistente para cada jugador basado en su username
      */
     private String generateColorForUsername(String username) {
-        String[] colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE"};
-        int hash = Math.abs(username.hashCode());
-        return colors[hash % colors.length];
+        String[] colors = {"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#90B08C", "#F7DC6F", "#B88FCE"};
+
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(username.getBytes());
+
+            int value = ((hash[0] & 0xff) << 8) | (hash[1] & 0xff);
+            return colors[Math.abs(value) % colors.length];
+
+        } catch (NoSuchAlgorithmException e) {
+            return colors[0];
+        }
     }
+
+    
 }

@@ -15,7 +15,7 @@ public class MazeResponseDTO {
 
     @Schema(description = "Tamaño del laberinto (SMALL, MEDIUM, LARGE).", example = "MEDIUM")
     private String size;
-
+ 
     @Schema(description = "Ancho del laberinto (número de celdas).", example = "20")
     private int width;
 

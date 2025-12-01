@@ -2,10 +2,15 @@ package org.arsw.maze_rush.users.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Schema(name = "UpdateProfileRequest", description = "Datos para actualizar el perfil del usuario")
 public class UpdateProfileRequestDTO {
     
@@ -42,6 +47,7 @@ public class UpdateProfileRequestDTO {
         pattern = "^#[0-9A-Fa-f]{6}$"
     )
     @Size(min = 7, max = 7, message = "El color debe estar en formato hex (#RRGGBB)")
+    @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "El color debe estar en formato hex (#RRGGBB)")
     private String avatarColor;
 
     @Schema(

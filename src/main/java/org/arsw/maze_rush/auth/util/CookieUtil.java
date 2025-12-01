@@ -87,9 +87,10 @@ public class CookieUtil {
      * Elimina una cookie estableciendo su tiempo de vida a 0
      */
     public void deleteCookie(HttpServletResponse response, String name) {
-        Cookie cookie = new Cookie(name, null);
+        Cookie cookie = new Cookie(name, "");
         cookie.setPath("/");
         cookie.setHttpOnly(true);
+        cookie.setSecure(true);
         cookie.setMaxAge(0);
         
         if (domain != null) {

@@ -73,9 +73,9 @@ public class LoggingAspect {
             
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            logger.error("✗ Error en {}.{}() después de {}ms: {}", 
-                className, methodName, duration, e.getMessage());
-            throw e;
+            String errorMessage = String.format("X Error en %s.%s() después de %dms", 
+                                            className, methodName, duration);
+            throw new IllegalStateException(errorMessage, e);
         }
     }
 

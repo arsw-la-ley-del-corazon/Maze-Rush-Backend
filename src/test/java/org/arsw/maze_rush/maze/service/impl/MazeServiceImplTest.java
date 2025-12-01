@@ -88,7 +88,6 @@ class MazeServiceImplTest {
         doThrow(JsonProcessingException.class).when(mockMapper)
                 .writeValueAsString(any(int[][].class));
 
-        // reemplazar el objectMapper del servicio por uno mockeado usando reflexión
         var field = MazeServiceImpl.class.getDeclaredField("objectMapper");
         field.setAccessible(true);
         field.set(serviceSpy, mockMapper);

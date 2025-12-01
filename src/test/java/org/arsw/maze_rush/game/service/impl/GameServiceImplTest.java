@@ -34,14 +34,12 @@ class GameServiceImplTest {
         service = new GameServiceImpl(gameRepository, lobbyRepository, mazeService);
     }
 
-
     // startGame
-    
     @Test
     void testStartGame_OK() {
 
-        // Lobby con jugadores suficientes
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1");   
 
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
@@ -80,6 +78,8 @@ class GameServiceImplTest {
     @Test
     void testStartGame_NotEnoughPlayers() {
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1");  
+
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
         lobby.addPlayer(u1);
@@ -91,6 +91,8 @@ class GameServiceImplTest {
     @Test
     void testStartGame_ExistingActiveGame() {
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1"); 
+
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
         UserEntity u2 = new UserEntity();
@@ -109,7 +111,9 @@ class GameServiceImplTest {
     @Test
     void testStartGame_GeneratesMazeIfNull() {
         LobbyEntity lobby = new LobbyEntity();
+        lobby.setCreatorUsername("user1");  
         lobby.setMazeSize("SMALL");
+
         UserEntity u1 = new UserEntity();
         u1.setUsername("user1");
 
@@ -135,7 +139,6 @@ class GameServiceImplTest {
     }
 
     // getGameById
-
     @Test
     void testGetGameById_OK() {
         UUID id = UUID.randomUUID();
@@ -158,7 +161,6 @@ class GameServiceImplTest {
     }
 
     // finishGame
-
     @Test
     void testFinishGame_OK() {
         UUID id = UUID.randomUUID();
@@ -208,7 +210,7 @@ class GameServiceImplTest {
         GameEntity game = GameEntity.builder()
                 .id(id)
                 .status("EN_CURSO")
-                .lobby(null)   // lobby es null
+                .lobby(null)
                 .build();
 
         when(gameRepository.findById(id)).thenReturn(Optional.of(game));
@@ -217,6 +219,6 @@ class GameServiceImplTest {
         GameEntity result = service.finishGame(id);
 
         assertEquals("FINALIZADO", result.getStatus());
-        verify(lobbyRepository, never()).save(any()); // no debe llamarse
+        verify(lobbyRepository, never()).save(any());
     }
 }
