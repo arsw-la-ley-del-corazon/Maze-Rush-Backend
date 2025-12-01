@@ -10,7 +10,7 @@ import lombok.Data;
     name = "LobbyResponse",
     description = "Respuesta con la información detallada de un lobby en el sistema."
 )
-public class LobbyResponseDTO {
+public class LobbyResponseDTO implements LobbyCommonDTO{
 
     @Schema(
         description = "ID único del lobby (UUID generado automáticamente).",

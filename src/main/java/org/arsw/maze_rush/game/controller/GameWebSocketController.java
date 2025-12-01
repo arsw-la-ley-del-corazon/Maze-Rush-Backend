@@ -3,8 +3,6 @@ package org.arsw.maze_rush.game.controller;
 import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.game.dto.*;
 import org.arsw.maze_rush.game.service.GameSessionManager;
-import org.arsw.maze_rush.maze.entities.MazeEntity;
-import org.arsw.maze_rush.maze.service.MazeService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -13,7 +11,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,17 +21,19 @@ import java.util.Map;
 @Controller
 @Slf4j
 public class GameWebSocketController {
+    private static final String TOPIC_GAME_PREFIX = "/topic/game/";
+    private static final String MOVE_SUFFIX = "/move";
+    private static final String SYNC_SUFFIX = "/sync";
 
     private final GameSessionManager sessionManager;
     private final SimpMessagingTemplate messagingTemplate;
-    private final MazeService mazeService;
+    
 
     public GameWebSocketController(GameSessionManager sessionManager, 
-                                   SimpMessagingTemplate messagingTemplate,
-                                   MazeService mazeService) {
+                                   SimpMessagingTemplate messagingTemplate) {
         this.sessionManager = sessionManager;
         this.messagingTemplate = messagingTemplate;
-        this.mazeService = mazeService;
+        
     }
 
     /**
@@ -66,7 +65,7 @@ public class GameWebSocketController {
 
         // Notificar a todos los jugadores que alguien se unió
         GameEventDTO event = new GameEventDTO("player_joined", username);
-        messagingTemplate.convertAndSend("/topic/game/" + lobbyCode + "/move", event);
+        messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX + lobbyCode + MOVE_SUFFIX , event);
 
         // Enviar sincronización completa al nuevo jugador
         sendSync(lobbyCode);
@@ -109,7 +108,7 @@ public class GameWebSocketController {
 
         // Broadcast del movimiento a todos los jugadores
         GameMoveDTO moveEvent = new GameMoveDTO(username, position);
-        messagingTemplate.convertAndSend("/topic/game/" + lobbyCode + "/move", moveEvent);
+        messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX + lobbyCode + MOVE_SUFFIX, moveEvent);
 
         log.debug("Movimiento de {} en {}: ({}, {})", 
             username, lobbyCode, position.getX(), position.getY());
@@ -142,7 +141,7 @@ public class GameWebSocketController {
 
         // Broadcast del evento de finalización
         GameFinishDTO finishEvent = new GameFinishDTO(username, finishTime);
-        messagingTemplate.convertAndSend("/topic/game/" + lobbyCode + "/move", finishEvent);
+        messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX+ lobbyCode + MOVE_SUFFIX, finishEvent);
 
         log.info("Jugador {} terminó el juego {} en {} segundos", 
             username, lobbyCode, finishTime);
@@ -173,7 +172,7 @@ public class GameWebSocketController {
 
         // Notificar a todos que el jugador salió
         GameEventDTO event = new GameEventDTO("player_left", username);
-        messagingTemplate.convertAndSend("/topic/game/" + lobbyCode + "/move", event);
+        messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX + lobbyCode + MOVE_SUFFIX, event);
 
         log.info("Jugador {} salió del juego {}", username, lobbyCode);
     }
@@ -185,7 +184,7 @@ public class GameWebSocketController {
         List<PlayerGameStateDTO> players = sessionManager.getPlayers(lobbyCode);
         if (!players.isEmpty()) {
             GameSyncDTO syncData = new GameSyncDTO(players);
-            messagingTemplate.convertAndSend("/topic/game/" + lobbyCode + "/sync", syncData);
+            messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX + lobbyCode + SYNC_SUFFIX, syncData);
             log.debug("Sincronización enviada para lobby {} ({} jugadores)", 
                 lobbyCode, players.size());
         }

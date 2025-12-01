@@ -134,6 +134,7 @@ public class GameSessionManager {
     public void clearSession(String lobbyCode) {
         gameStates.remove(lobbyCode);
         gameStartTimes.remove(lobbyCode);
+        gameMazes.remove(lobbyCode);
         log.info("Sesión de juego {} limpiada manualmente", lobbyCode);
     }
 
@@ -150,7 +151,9 @@ public class GameSessionManager {
     public Long getElapsedTime(String lobbyCode) {
         Instant startTime = gameStartTimes.get(lobbyCode);
         if (startTime != null) {
-            return Instant.now().getEpochSecond() - startTime.getEpochSecond();
+            long startMillis = startTime.toEpochMilli();
+            long nowMillis = Instant.now().toEpochMilli();
+            return (nowMillis - startMillis) / 1000;
         }
         return 0L;
     }

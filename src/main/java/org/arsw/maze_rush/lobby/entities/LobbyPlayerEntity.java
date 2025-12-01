@@ -36,7 +36,7 @@ public class LobbyPlayerEntity {
     @Column(name = "joined_at", nullable = false, updatable = false)
     private Instant joinedAt;
 
-    public LobbyPlayerEntity() {
+    protected LobbyPlayerEntity() {
     }
 
     @PrePersist

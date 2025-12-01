@@ -10,7 +10,7 @@ import lombok.Data;
     name = "LobbyRequest",
     description = "Datos de entrada requeridos para crear un lobby de juego."
 )
-public class LobbyRequestDTO {
+public class LobbyRequestDTO  {
 
     @Schema(
         description = "Tamaño del laberinto (Pequeño, Mediano o Grande).",

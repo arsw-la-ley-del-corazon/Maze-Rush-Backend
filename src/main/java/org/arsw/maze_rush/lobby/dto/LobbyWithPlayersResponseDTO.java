@@ -10,7 +10,7 @@ import java.util.List;
     name = "LobbyWithPlayersResponse",
     description = "Respuesta con la información del lobby y los jugadores asociados."
 )
-public class LobbyWithPlayersResponseDTO {
+public class LobbyWithPlayersResponseDTO implements LobbyCommonDTO{
 
     @Schema(description = "ID único del lobby (UUID generado automáticamente).")
     private String id;

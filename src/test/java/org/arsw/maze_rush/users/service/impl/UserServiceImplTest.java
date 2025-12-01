@@ -2,223 +2,354 @@ package org.arsw.maze_rush.users.service.impl;
 
 import org.arsw.maze_rush.common.exceptions.ConflictException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
+import org.arsw.maze_rush.users.dto.UpdateProfileRequestDTO;
 import org.arsw.maze_rush.users.dto.UserRequestDTO;
 import org.arsw.maze_rush.users.dto.UserResponseDTO;
 import org.arsw.maze_rush.users.entities.UserEntity;
 import org.arsw.maze_rush.users.repository.UserRepository;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.ExtendWith;
-
+import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
 
     @Mock
-    private UserRepository userRepository;
+    UserRepository userRepository;
 
     @InjectMocks
-    private UserServiceImpl service;
+    UserServiceImpl service;
 
-    private UserEntity userEntity;
+    UserEntity mockUser;
 
     @BeforeEach
     void setup() {
-        userEntity = new UserEntity();
-        userEntity.setId(java.util.UUID.randomUUID());
-        userEntity.setUsername("TestUser");
-        userEntity.setEmail("test@mail.com");
-        userEntity.setPassword("123");
-        userEntity.setScore(10);
-        userEntity.setLevel(1);
+        mockUser = new UserEntity();
+        mockUser.setId(UUID.randomUUID());
+        mockUser.setUsername("olduser");
+        mockUser.setEmail("old@mail.com");
+        mockUser.setScore(10);
+        mockUser.setLevel(1);
+        mockUser.setBio("old bio");
+        mockUser.setAvatarColor("#000");
+        mockUser.setPreferredMazeSize("15x15");
     }
 
-    // findAllUsers
+    // findAllUsers()
     @Test
-    void testFindAllUsers() {
-        when(userRepository.findAll()).thenReturn(List.of(userEntity));
+    void testFindAllUsers_ok() {
+        UserEntity u1 = new UserEntity();
+        u1.setId(UUID.randomUUID());
+        u1.setUsername("user1");
+        u1.setEmail("u1@mail.com");
+
+        UserEntity u2 = new UserEntity();
+        u2.setId(UUID.randomUUID());
+        u2.setUsername("user2");
+        u2.setEmail("u2@mail.com");
+
+        when(userRepository.findAll()).thenReturn(List.of(u1, u2));
 
         List<UserResponseDTO> result = service.findAllUsers();
 
-        assertEquals(1, result.size());
-        assertEquals("TestUser", result.get(0).getUsername());
+        assertEquals(2, result.size());
         verify(userRepository).findAll();
     }
 
-    // findUserByUsername 
+
+    // findUserByUsername()
     @Test
-    void testFindUserByUsername() {
-        when(userRepository.findByUsernameIgnoreCase("TestUser"))
-                .thenReturn(Optional.of(userEntity));
+    void testFindUserByUsername_ok() {
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
 
-        UserResponseDTO dto = service.findUserByUsername("TestUser");
+        UserResponseDTO dto = service.findUserByUsername("olduser");
 
-        assertEquals("TestUser", dto.getUsername());
+        assertEquals("olduser", dto.getUsername());
     }
 
-    // findUserByUsername not found
     @Test
-    void testFindUserByUsername_NotFound() {
-        when(userRepository.findByUsernameIgnoreCase("ABC"))
+    void testFindUserByUsername_notFound() {
+        when(userRepository.findByUsernameIgnoreCase("ghost"))
                 .thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class,
-                () -> service.findUserByUsername("ABC"));
+                () -> service.findUserByUsername("ghost"));
     }
 
-
-    // findUserByEmail 
+    // findUserByEmail()
     @Test
-    void testFindUserByEmail() {
-        when(userRepository.findByEmailIgnoreCase("test@mail.com"))
-                .thenReturn(Optional.of(userEntity));
+    void testFindUserByEmail_ok() {
+        when(userRepository.findByEmailIgnoreCase("old@mail.com"))
+                .thenReturn(Optional.of(mockUser));
 
-        UserResponseDTO dto = service.findUserByEmail("test@mail.com");
+        UserResponseDTO dto = service.findUserByEmail("old@mail.com");
 
-        assertEquals("TestUser", dto.getUsername());
+        assertEquals("old@mail.com", dto.getEmail());
     }
 
-    // findUserByEmail not found
     @Test
-    void testFindUserByEmail_NotFound() {
-        when(userRepository.findByEmailIgnoreCase("no@mail.com"))
+    void testFindUserByEmail_notFound() {
+        when(userRepository.findByEmailIgnoreCase("x@mail.com"))
                 .thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class,
-                () -> service.findUserByEmail("no@mail.com"));
+                () -> service.findUserByEmail("x@mail.com"));
     }
 
-    // createUser 
+    // createUser()
     @Test
-    void testCreateUser_OK() {
+    void testCreateUser_ok() {
         UserRequestDTO req = new UserRequestDTO();
-        req.setUsername("Nuevo");
-        req.setPassword("1234");
-        req.setEmail("nuevo@mail.com");
+        req.setUsername("newUser");
+        req.setEmail("new@mail.com");
+        req.setPassword("123");
 
-        when(userRepository.existsByUsernameIgnoreCase("Nuevo")).thenReturn(false);
-        when(userRepository.existsByEmailIgnoreCase("nuevo@mail.com")).thenReturn(false);
-        when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);
+        when(userRepository.existsByUsernameIgnoreCase("newUser")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("new@mail.com")).thenReturn(false);
+
+        when(userRepository.save(any(UserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
 
         UserResponseDTO dto = service.createUser(req);
 
-        assertEquals("TestUser", dto.getUsername()); // from saved entity mock
+        assertEquals("newUser", dto.getUsername());
     }
 
-    // username conflict
     @Test
-    void testCreateUser_UsernameConflict() {
+    void testCreateUser_usernameConflict() {
         UserRequestDTO req = new UserRequestDTO();
-        req.setUsername("Nuevo");
-        req.setEmail("nuevo@mail.com");
+        req.setUsername("taken");
+        req.setEmail("x@mail.com");
 
-        when(userRepository.existsByUsernameIgnoreCase("Nuevo")).thenReturn(true);
+        when(userRepository.existsByUsernameIgnoreCase("taken")).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> service.createUser(req));
     }
 
-    // email conflict
     @Test
-    void testCreateUser_EmailConflict() {
+    void testCreateUser_emailConflict() {
         UserRequestDTO req = new UserRequestDTO();
-        req.setUsername("Nuevo");
-        req.setEmail("nuevo@mail.com");
+        req.setUsername("new");
+        req.setEmail("taken@mail.com");
 
-        when(userRepository.existsByUsernameIgnoreCase("Nuevo")).thenReturn(false);
-        when(userRepository.existsByEmailIgnoreCase("nuevo@mail.com")).thenReturn(true);
+        when(userRepository.existsByUsernameIgnoreCase("new")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("taken@mail.com")).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> service.createUser(req));
     }
 
-    // updateUser 
+
+    // updateUser() 
     @Test
-    void testUpdateUser_OK() {
-        when(userRepository.findByUsernameIgnoreCase("TestUser"))
-                .thenReturn(Optional.of(userEntity));
-        when(userRepository.save(any(UserEntity.class))).thenReturn(userEntity);
-
+    void testUpdateUser_ok() {
         UserRequestDTO req = new UserRequestDTO();
-        req.setUsername("NuevoNombre");
-        req.setEmail("nuevo@mail.com");
-        req.setPassword("123");
+        req.setUsername("updated");
+        req.setEmail("updated@mail.com");
+        req.setPassword("pass");
 
-        when(userRepository.existsByUsernameIgnoreCase("NuevoNombre")).thenReturn(false);
-        when(userRepository.existsByEmailIgnoreCase("nuevo@mail.com")).thenReturn(false);
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
 
-        UserResponseDTO dto = service.updateUser("TestUser", req);
+        when(userRepository.existsByUsernameIgnoreCase("updated")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("updated@mail.com")).thenReturn(false);
 
-        assertEquals("NuevoNombre", dto.getUsername());
+        when(userRepository.save(any(UserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        UserResponseDTO dto = service.updateUser("olduser", req);
+
+        assertEquals("updated", dto.getUsername());
     }
 
-    // updateUser user not found
     @Test
-    void testUpdateUser_NotFound() {
-        when(userRepository.findByUsernameIgnoreCase("X"))
+    void testUpdateUser_notFound() {
+        when(userRepository.findByUsernameIgnoreCase("x"))
                 .thenReturn(Optional.empty());
-
-        UserRequestDTO req = new UserRequestDTO();
-        assertThrows(NotFoundException.class, () -> service.updateUser("X", req));
+        UserRequestDTO requestDto = new UserRequestDTO();
+        assertThrows(NotFoundException.class, () -> 
+            service.updateUser("x", requestDto)
+        );
     }
 
-    // username already used
     @Test
-    void testUpdateUser_UsernameConflict() {
-        when(userRepository.findByUsernameIgnoreCase("TestUser"))
-                .thenReturn(Optional.of(userEntity));
-
+    void testUpdateUser_usernameConflict() {
         UserRequestDTO req = new UserRequestDTO();
-        req.setUsername("Otro");
+        req.setUsername("taken");
 
-        when(userRepository.existsByUsernameIgnoreCase("Otro")).thenReturn(true);
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.existsByUsernameIgnoreCase("taken")).thenReturn(true);
 
         assertThrows(ConflictException.class,
-                () -> service.updateUser("TestUser", req));
+                () -> service.updateUser("olduser", req));
     }
 
-    // email already used
     @Test
-    void testUpdateUser_EmailConflict() {
-        when(userRepository.findByUsernameIgnoreCase("TestUser"))
-                .thenReturn(Optional.of(userEntity));
-
+    void testUpdateUser_emailConflict() {
         UserRequestDTO req = new UserRequestDTO();
-        req.setEmail("otro@mail.com");
+        req.setEmail("taken@mail.com");
 
-        when(userRepository.existsByEmailIgnoreCase("otro@mail.com")).thenReturn(true);
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.existsByEmailIgnoreCase("taken@mail.com")).thenReturn(true);
 
         assertThrows(ConflictException.class,
-                () -> service.updateUser("TestUser", req));
+                () -> service.updateUser("olduser", req));
     }
 
-    // deleteUser 
-    @Test
-    void testDeleteUser() {
-        when(userRepository.findByUsernameIgnoreCase("TestUser"))
-                .thenReturn(Optional.of(userEntity));
 
-        assertDoesNotThrow(() -> service.deleteUser("TestUser"));
-        verify(userRepository).delete(userEntity);
+    // deleteUser()
+    @Test
+    void testDeleteUser_ok() {
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        assertDoesNotThrow(() -> service.deleteUser("olduser"));
+        verify(userRepository).delete(mockUser);
     }
 
-    // deleteUser not found
     @Test
-    void testDeleteUser_NotFound() {
-        when(userRepository.findByUsernameIgnoreCase("X"))
+    void testDeleteUser_notFound() {
+        when(userRepository.findByUsernameIgnoreCase("ghost"))
                 .thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class,
-                () -> service.deleteUser("X"));
+                () -> service.deleteUser("ghost"));
     }
 
+    // updateProfile()
+    @Test
+    void testUpdateProfile_success() {
+        UpdateProfileRequestDTO req = new UpdateProfileRequestDTO();
+        req.setUsername("NewUser");
+        req.setEmail("NEW@MAIL.COM");
+        req.setBio("  new bio  ");
+        req.setAvatarColor("  #FFF  ");
+        req.setPreferredMazeSize("  20x20 ");
+
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.existsByUsernameIgnoreCase("NewUser")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase(anyString())).thenReturn(false);
+
+        when(userRepository.save(any(UserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        UserResponseDTO result = service.updateProfile("olduser", req);
+
+        assertEquals("NewUser", result.getUsername());
+        assertEquals("new@mail.com", result.getEmail());
+        assertEquals("new bio", result.getBio());
+        assertEquals("#FFF", result.getAvatarColor());
+        assertEquals("20x20", result.getPreferredMazeSize());
+    }
+
+    @Test
+    void testUpdateProfile_usernameConflict() {
+        UpdateProfileRequestDTO req = new UpdateProfileRequestDTO();
+        req.setUsername("taken");
+
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.existsByUsernameIgnoreCase("taken")).thenReturn(true);
+
+        assertThrows(ConflictException.class,
+                () -> service.updateProfile("olduser", req));
+    }
+
+    @Test
+    void testUpdateProfile_emailConflict() {
+        UpdateProfileRequestDTO req = new UpdateProfileRequestDTO();
+        req.setEmail("taken@mail.com");
+
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.existsByEmailIgnoreCase("taken@mail.com")).thenReturn(true);
+
+        assertThrows(ConflictException.class,
+                () -> service.updateProfile("olduser", req));
+    }
+
+    @Test
+    void testUpdateProfile_noChanges() {
+        UpdateProfileRequestDTO req = new UpdateProfileRequestDTO();
+
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.save(any(UserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        UserResponseDTO result = service.updateProfile("olduser", req);
+
+        assertEquals("olduser", result.getUsername());
+        assertEquals("old@mail.com", result.getEmail());
+    }
+
+    @Test
+    void testUpdateProfile_updateOnlyBio() {
+        UpdateProfileRequestDTO req = new UpdateProfileRequestDTO();
+        req.setBio(" changed ");
+
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.save(any(UserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        UserResponseDTO result = service.updateProfile("olduser", req);
+
+        assertEquals("changed", result.getBio());
+        assertEquals("olduser", result.getUsername());
+    }
+
+    @Test
+    void testUpdateProfile_trimmedValues() {
+        UpdateProfileRequestDTO req = new UpdateProfileRequestDTO();
+        req.setUsername("   newname   ");
+        req.setEmail("  new@mail.com   ");
+
+        when(userRepository.findByUsernameIgnoreCase("olduser"))
+                .thenReturn(Optional.of(mockUser));
+
+        when(userRepository.existsByUsernameIgnoreCase("newname")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("new@mail.com")).thenReturn(false);
+
+        when(userRepository.save(any(UserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        UserResponseDTO result = service.updateProfile("olduser", req);
+
+        assertEquals("newname", result.getUsername());
+        assertEquals("new@mail.com", result.getEmail());
+    }
+
+    @Test
+    void testUpdateProfile_userNotFound() {
+        UpdateProfileRequestDTO req = new UpdateProfileRequestDTO();
+
+        when(userRepository.findByUsernameIgnoreCase("x"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class,
+                () -> service.updateProfile("x", req));
+    }
 }

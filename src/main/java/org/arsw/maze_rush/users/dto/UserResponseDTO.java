@@ -1,9 +1,13 @@
 package org.arsw.maze_rush.users.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Schema(name = "UserResponse", description = "Respuesta con información del usuario")
 public class UserResponseDTO {
     
