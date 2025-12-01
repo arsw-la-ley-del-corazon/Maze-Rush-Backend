@@ -216,6 +216,32 @@ class GameLogicServiceImplTest {
         verify(gameSessionManager).applyEffectToOpponents(lobbyCode,username,PowerUpType.FREEZE,3);
     }
 
+    @Test
+    void movePlayer_CollectMultiplePowerUps_ShouldStackDuration() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+        
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO(username, new PositionDTO(0, 0));
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
+
+        // Recoger primer ClearFog (5s) en (1,0)
+        PowerUp p1 = PowerUp.builder().type(PowerUpType.CLEAR_FOG).duration(5).x(1).y(0).build();
+        when(gameSessionManager.checkAndCollectPowerUp(lobbyCode, 1, 0)).thenReturn(p1);
+
+        service.movePlayer(gameId, new PlayerMoveRequestDTO(username, "RIGHT"));
+        
+        verify(gameSessionManager).applyEffect(lobbyCode,username,PowerUpType.CLEAR_FOG, 5);
+
+        // Moverse a (2,0) y recoger OTRO ClearFog (5s)
+        playerState.setPosition(new PositionDTO(1, 0));
+        PowerUp p2 = PowerUp.builder().type(PowerUpType.CLEAR_FOG).duration(5).x(2).y(0).build();
+        when(gameSessionManager.checkAndCollectPowerUp(lobbyCode, 2, 0)).thenReturn(p2);
+        
+        service.movePlayer(gameId, new PlayerMoveRequestDTO(username, "RIGHT"));
+
+        verify(gameSessionManager, times(2)).applyEffect(lobbyCode,username,PowerUpType.CLEAR_FOG, 5);
+    }
+    
+
 
     private UserEntity fakeUser(String username) {
         UserEntity u = new UserEntity();

@@ -11,22 +11,15 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Servicio para gestionar sesiones de juego en tiempo real
- * Mantiene el estado de todos los jugadores en cada partida activa
- * Thread-safe utilizando estructuras concurrentes
- */
+
 @Service
 @Slf4j
 public class GameSessionManager {
 
-    // Map: lobbyCode -> Map<username, PlayerGameStateDTO>
     private final Map<String, Map<String, PlayerGameStateDTO>> gameStates = new ConcurrentHashMap<>();
     
-    // Map: lobbyCode -> gameStartTime
     private final Map<String, Instant> gameStartTimes = new ConcurrentHashMap<>();
     
-    // Map: lobbyCode -> mazeId (UUID del laberinto generado)
     private final Map<String, String> gameMazes = new ConcurrentHashMap<>();
 
     private final Map<String, Map<String, PowerUp>> gamePowerUps = new ConcurrentHashMap<>();
@@ -38,7 +31,6 @@ public class GameSessionManager {
         gameStates.computeIfAbsent(lobbyCode, k -> new ConcurrentHashMap<>())
                 .putIfAbsent(username, new PlayerGameStateDTO(username, new PositionDTO(0, 0)));
         
-        // Establecer tiempo de inicio si es el primer jugador
         gameStartTimes.putIfAbsent(lobbyCode, Instant.now());
         
         log.info("Jugador {} añadido al juego {}", username, lobbyCode);
@@ -85,7 +77,6 @@ public class GameSessionManager {
             players.remove(username);
             log.info("Jugador {} eliminado del juego {}", username, lobbyCode);
             
-            // Si no quedan jugadores, limpiar la sesión
             if (players.isEmpty()) {
                 gameStates.remove(lobbyCode);
                 gameStartTimes.remove(lobbyCode);
@@ -219,11 +210,24 @@ public class GameSessionManager {
     public void applyEffect(String lobbyCode, String username, PowerUpType type, int durationSeconds) {
         PlayerGameStateDTO player = getPlayer(lobbyCode, username);
         if (player != null) {
-            long expirationTime = Instant.now().plusSeconds(durationSeconds).toEpochMilli();
-            player.getActiveEffects().put(type, expirationTime);
-            log.info("Efecto {} aplicado a {} por {}s", type, username, durationSeconds);
+            long additionalMillis = durationSeconds * 1000L;
+            long now = Instant.now().toEpochMilli();
+            player.getActiveEffects().compute(type, (k, currentExpiration) -> {
+                //  No tiene el efecto O el efecto anterior ya expiró
+                if (currentExpiration == null || currentExpiration < now) {
+                    return now + additionalMillis;
+                } 
+        
+                // El efecto está activo
+                else {
+                    return currentExpiration + additionalMillis;
+                }
+            });
+
+            log.info("Efecto {} aplicado/acumulado a {} por {}s adicionales", type, username, durationSeconds);
         }
     }
+    
 
     /**
      * Aplica un efecto a TODOS los oponentes (excluyendo al que lo lanzó).
