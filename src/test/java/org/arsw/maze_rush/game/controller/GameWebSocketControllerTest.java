@@ -1,6 +1,9 @@
 package org.arsw.maze_rush.game.controller;
 
 import org.arsw.maze_rush.game.dto.*;
+import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
+import org.arsw.maze_rush.game.logic.entities.GameState;
+import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.service.GameSessionManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,17 +27,21 @@ class GameWebSocketControllerTest {
     private SimpMessagingTemplate messagingTemplate;
 
     @Mock
+    private GameLogicService gameLogicService; 
+
+    @Mock
     private Principal principal;
 
     @Mock
     private SimpMessageHeaderAccessor headerAccessor;
 
-    @InjectMocks
     private GameWebSocketController controller;
 
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
+
+        controller = new GameWebSocketController(sessionManager, messagingTemplate, gameLogicService);
 
         when(principal.getName()).thenReturn("player1");
 
@@ -45,7 +52,6 @@ class GameWebSocketControllerTest {
     // handlePlayerJoin
     @Test
     void testHandlePlayerJoin_ok() {
-
         Map<String, String> payload = Map.of("username", "player1");
 
         controller.handlePlayerJoin("ABC123", payload, principal, headerAccessor);
@@ -59,32 +65,43 @@ class GameWebSocketControllerTest {
                     ev.getUsername().equals("player1")
             )
         );
-
     }
 
     // handlePlayerMove
     @Test
     void testHandlePlayerMove_ok() {
+        UUID gameId = UUID.randomUUID();
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("username", "player1");
-        payload.put("position", Map.of("x", 5, "y", 7));
+        payload.put("direction", "UP");
+        payload.put("gameId", gameId.toString());
+
+        GameState mockState = new GameState();
+        mockState.setGameId(gameId);
+        when(gameLogicService.movePlayer(any(), any())).thenReturn(mockState);
 
         controller.handlePlayerMove("L1", payload, principal);
 
-        verify(sessionManager).updatePlayerPosition(eq("L1"), eq("player1"), any(PositionDTO.class));
+        // Verificar que se llamó al GameLogicService con los datos correctos
+        ArgumentCaptor<PlayerMoveRequestDTO> captor = ArgumentCaptor.forClass(PlayerMoveRequestDTO.class);
+        verify(gameLogicService).movePlayer(eq(gameId), captor.capture());
+        
+        assertEquals("UP", captor.getValue().getDirection());
+        assertEquals("player1", captor.getValue().getUsername());
 
+        // Verificar que se envió el GameState completo por WebSocket
         verify(messagingTemplate).convertAndSend(
-            eq("/topic/game/L1/move"),
-            argThat((GameMoveDTO ev) -> ev.getUsername().equals("player1"))
+            "/topic/game/L1/move",
+            mockState
         );
-
+        
+        verify(sessionManager, never()).updatePlayerPosition(any(), any(), any());
     }
 
     // handlePlayerFinish
     @Test
     void testHandlePlayerFinish_ok() {
-
         Map<String, Object> payload = Map.of("username", "player1");
 
         PositionDTO pos = new PositionDTO(0, 0);
@@ -105,13 +122,11 @@ class GameWebSocketControllerTest {
                     ev.getUsername().equals("player1")
             )
         );
-
     }
 
-    // TEST: handlePlayerLeave
+    // handlePlayerLeave
     @Test
     void testHandlePlayerLeave_ok() {
-
         Map<String, String> payload = Map.of("username", "player1");
 
         controller.handlePlayerLeave("L55", payload, principal);
@@ -127,33 +142,26 @@ class GameWebSocketControllerTest {
         );
     }
 
-    // TEST: extractUsername
+    // extractUsername 
     @Test
     void testExtractUsername_fromPayload() {
         Map<String, Object> payload = Map.of("username", "Sebastian");
-
         String result = invokeExtractUsername(payload, null);
-
         assertEquals("Sebastian", result);
     }
 
     @Test
     void testExtractUsername_fromPrincipal() {
         Map<String, Object> payload = Map.of();
-
         when(principal.getName()).thenReturn("PrincipalUser");
-
         String result = invokeExtractUsername(payload, principal);
-
         assertEquals("PrincipalUser", result);
     }
 
     @Test
     void testExtractUsername_returnsNullWhenMissing() {
         Map<String, Object> payload = Map.of();
-
         String result = invokeExtractUsername(payload, null);
-
         assertNull(result);
     }
 

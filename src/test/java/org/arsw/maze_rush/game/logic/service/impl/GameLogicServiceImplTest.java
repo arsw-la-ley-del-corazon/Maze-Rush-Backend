@@ -292,7 +292,32 @@ class GameLogicServiceImplTest {
         verify(gameRepository, times(1)).save(gameEntity);
     }
 
+    /**
+     * Verificar que el estado retornado incluye el layout actualizado.
+     */
+    @Test
+    void movePlayer_ShouldReturnUpdatedLayoutInGameState() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+        
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO(username, new PositionDTO(0, 0));
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
 
+        PowerUp p = PowerUp.builder().type(PowerUpType.FREEZE).x(1).y(0).build();
+        when(gameSessionManager.checkAndCollectPowerUp(lobbyCode, 1, 0)).thenReturn(p);
+
+        mazeEntity.setLayout("0P\n00");
+        mazeEntity.setWidth(2);  
+        mazeEntity.setHeight(2);
+
+        GameState resultState = service.movePlayer(gameId, new PlayerMoveRequestDTO(username, "RIGHT"));
+
+        assertNotNull(resultState.getCurrentLayout(), "El layout no debe ser nulo en la respuesta");
+
+        String firstRow = resultState.getCurrentLayout().split("\n")[0].trim();
+        assertEquals("00", firstRow, "El GameState retornado debe tener el layout limpio (sin la P)");
+    }
+    
+    
     private UserEntity fakeUser(String username) {
         UserEntity u = new UserEntity();
         u.setUsername(username);

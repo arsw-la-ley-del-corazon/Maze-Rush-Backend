@@ -60,7 +60,7 @@ public class GameLogicServiceImpl implements GameLogicService {
         maze.setLayout(convertMatrixToJSON(matrix));
         gameRepository.save(game);
 
-        return buildGameStateFromManager(gameId);
+        return buildGameStateFromManager(gameId, game);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class GameLogicServiceImpl implements GameLogicService {
         
         if (playerState.getActiveEffects().containsKey(PowerUpType.FREEZE)) {
             log.info("Jugador {} está congelado. Turno perdido.", username);
-            return buildGameStateFromManager(gameId); // Retornamos sin mover
+            return buildGameStateFromManager(gameId, game);
         }
 
         // Validar CONFUSIÓN (Invertir controles)
@@ -130,12 +130,13 @@ public class GameLogicServiceImpl implements GameLogicService {
         // Actualizar posición en Manager
         gameSessionManager.updatePlayerPosition(lobbyCode, username, new PositionDTO(newX, newY));
 
-        return buildGameStateFromManager(gameId);
+        return buildGameStateFromManager(gameId, game);
     }
 
     @Override
     public GameState getCurrentState(UUID gameId) {
-        return buildGameStateFromManager(gameId);
+        GameEntity game = gameRepository.findById(gameId).orElseThrow();
+        return buildGameStateFromManager(gameId, game);
     }
 
     // --- Métodos Auxiliares ---
@@ -166,10 +167,13 @@ public class GameLogicServiceImpl implements GameLogicService {
         maze.setLayout(convertMatrixToJSON(matrix));
     }
 
-    private GameState buildGameStateFromManager(UUID gameId) {
+    private GameState buildGameStateFromManager(UUID gameId, GameEntity game) {
         GameState state = new GameState();
         state.setGameId(gameId);
         state.setStatus("EN_CURSO");
+        if (game.getLobby().getMaze() != null) {
+            state.setCurrentLayout(game.getLobby().getMaze().getLayout());
+        }
         
         return state;
     }

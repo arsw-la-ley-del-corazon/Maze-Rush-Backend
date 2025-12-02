@@ -2,6 +2,9 @@ package org.arsw.maze_rush.game.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.game.dto.*;
+import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
+import org.arsw.maze_rush.game.logic.entities.GameState;
+import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.service.GameSessionManager;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Controlador WebSocket para eventos de juego en tiempo real
@@ -27,13 +31,14 @@ public class GameWebSocketController {
 
     private final GameSessionManager sessionManager;
     private final SimpMessagingTemplate messagingTemplate;
+    private final GameLogicService gameLogicService;
     
-
     public GameWebSocketController(GameSessionManager sessionManager, 
-                                   SimpMessagingTemplate messagingTemplate) {
+                                   SimpMessagingTemplate messagingTemplate,
+                                   GameLogicService gameLogicService) { 
         this.sessionManager = sessionManager;
         this.messagingTemplate = messagingTemplate;
-        
+        this.gameLogicService = gameLogicService; 
     }
 
     /**
@@ -85,34 +90,35 @@ public class GameWebSocketController {
             Principal principal) {
         
         String username = extractUsername(payload, principal);
-        if (username == null) {
-            log.warn("Username no proporcionado en move para lobby {}", lobbyCode);
+        if (username == null) return;
+
+        String direction = (String) payload.get("direction");
+        if (direction == null) {
+            log.warn("Dirección no proporcionada en move para {}", username);
             return;
         }
 
-        // Extraer posición del payload
-        @SuppressWarnings("unchecked")
-        Map<String, Integer> positionMap = (Map<String, Integer>) payload.get("position");
-        if (positionMap == null) {
-            log.warn("Posición no proporcionada en move para {} en {}", username, lobbyCode);
-            return;
+        String gameIdStr = (String) payload.get("gameId");
+        if (gameIdStr == null) {
+             log.error("Falta gameId en el payload de movimiento");
+             return;
         }
+        
+        UUID gameId = UUID.fromString(gameIdStr);
 
-        PositionDTO position = new PositionDTO(
-            positionMap.get("x"),
-            positionMap.get("y")
-        );
+        try {
+            PlayerMoveRequestDTO moveRequest = new PlayerMoveRequestDTO(username, direction);
+            
+            GameState updatedState = gameLogicService.movePlayer(gameId, moveRequest);
 
-        // Actualizar posición en la sesión
-        sessionManager.updatePlayerPosition(lobbyCode, username, position);
-
-        // Broadcast del movimiento a todos los jugadores
-        GameMoveDTO moveEvent = new GameMoveDTO(username, position);
-        messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX + lobbyCode + MOVE_SUFFIX, moveEvent);
-
-        log.debug("Movimiento de {} en {}: ({}, {})", 
-            username, lobbyCode, position.getX(), position.getY());
+            messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX + lobbyCode + MOVE_SUFFIX, updatedState);
+            
+        } catch (Exception e) {
+            log.error("Error procesando movimiento: {}", e.getMessage());
+        }
     }
+
+    
 
     /**
      * Maneja cuando un jugador termina el laberinto
@@ -215,4 +221,6 @@ public class GameWebSocketController {
         }
         return username;
     }
+
+    
 }

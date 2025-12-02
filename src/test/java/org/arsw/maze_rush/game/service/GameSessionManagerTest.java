@@ -167,4 +167,29 @@ class GameSessionManagerTest {
         assertFalse(sessionManager.hasMaze("OTHER_LOBBY"));
         assertNull(sessionManager.getMazeId("OTHER_LOBBY"));
     }
+
+    /**
+     * TEST : Verificar que los efectos expiren.
+     */
+    @Test
+    @SuppressWarnings("java:S2925") 
+    void cleanExpiredEffects_ShouldRemoveOldEffects() throws InterruptedException {
+        sessionManager.addPlayer(LOBBY_CODE, USERNAME_1);
+        
+        //  Aplicar efecto FREEZE por 1 segundo
+        sessionManager.applyEffect(LOBBY_CODE, USERNAME_1, 
+                org.arsw.maze_rush.powerups.entities.PowerUpType.FREEZE, 1);
+        PlayerGameStateDTO player = sessionManager.getPlayer(LOBBY_CODE, USERNAME_1);
+
+        // Verificar que el efecto se aplicó
+        assertFalse(player.getActiveEffects().isEmpty(), "El efecto debería estar activo inicialmente");
+        assertTrue(player.getActiveEffects().containsKey(
+                org.arsw.maze_rush.powerups.entities.PowerUpType.FREEZE));
+        //Esperar a que expire 
+        Thread.sleep(1100);
+        
+        // Ejecutar la limpieza )
+        sessionManager.cleanExpiredEffects(LOBBY_CODE, USERNAME_1);
+        assertTrue(player.getActiveEffects().isEmpty(), "El efecto debió eliminarse tras expirar el tiempo");
+    }
 }
