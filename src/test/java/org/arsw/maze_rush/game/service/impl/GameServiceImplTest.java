@@ -22,7 +22,6 @@ class GameServiceImplTest {
     private GameRepository gameRepository;
     private LobbyRepository lobbyRepository;
     private MazeService mazeService;
-
     private GameServiceImpl service;
 
     @BeforeEach

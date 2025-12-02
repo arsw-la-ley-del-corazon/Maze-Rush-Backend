@@ -3,29 +3,26 @@ package org.arsw.maze_rush.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.arsw.maze_rush.game.dto.PlayerGameStateDTO;
 import org.arsw.maze_rush.game.dto.PositionDTO;
+import org.arsw.maze_rush.powerups.entities.PowerUp;
+import org.arsw.maze_rush.powerups.entities.PowerUpType;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Servicio para gestionar sesiones de juego en tiempo real
- * Mantiene el estado de todos los jugadores en cada partida activa
- * Thread-safe utilizando estructuras concurrentes
- */
+
 @Service
 @Slf4j
 public class GameSessionManager {
 
-    // Map: lobbyCode -> Map<username, PlayerGameStateDTO>
     private final Map<String, Map<String, PlayerGameStateDTO>> gameStates = new ConcurrentHashMap<>();
     
-    // Map: lobbyCode -> gameStartTime
     private final Map<String, Instant> gameStartTimes = new ConcurrentHashMap<>();
     
-    // Map: lobbyCode -> mazeId (UUID del laberinto generado)
     private final Map<String, String> gameMazes = new ConcurrentHashMap<>();
+
+    private final Map<String, Map<String, PowerUp>> gamePowerUps = new ConcurrentHashMap<>();
 
     /**
      * Registra un jugador en una sesión de juego
@@ -34,7 +31,6 @@ public class GameSessionManager {
         gameStates.computeIfAbsent(lobbyCode, k -> new ConcurrentHashMap<>())
                 .putIfAbsent(username, new PlayerGameStateDTO(username, new PositionDTO(0, 0)));
         
-        // Establecer tiempo de inicio si es el primer jugador
         gameStartTimes.putIfAbsent(lobbyCode, Instant.now());
         
         log.info("Jugador {} añadido al juego {}", username, lobbyCode);
@@ -81,7 +77,6 @@ public class GameSessionManager {
             players.remove(username);
             log.info("Jugador {} eliminado del juego {}", username, lobbyCode);
             
-            // Si no quedan jugadores, limpiar la sesión
             if (players.isEmpty()) {
                 gameStates.remove(lobbyCode);
                 gameStartTimes.remove(lobbyCode);
@@ -135,6 +130,7 @@ public class GameSessionManager {
         gameStates.remove(lobbyCode);
         gameStartTimes.remove(lobbyCode);
         gameMazes.remove(lobbyCode);
+        gamePowerUps.remove(lobbyCode);
         log.info("Sesión de juego {} limpiada manualmente", lobbyCode);
     }
 
@@ -179,4 +175,84 @@ public class GameSessionManager {
     public boolean hasMaze(String lobbyCode) {
         return gameMazes.containsKey(lobbyCode);
     }
+
+    /**
+    * Guarda los powerups generados al inicio de la partida en el lobby especificado.
+    */
+    public void setPowerUps(String lobbyCode, List<PowerUp> powerUps) {
+        Map<String, PowerUp> powerUpMap = new ConcurrentHashMap<>();     
+        for (PowerUp p : powerUps) {
+            String key = p.getX() + "," + p.getY();
+            powerUpMap.put(key, p);
+        }
+        gamePowerUps.put(lobbyCode, powerUpMap);
+        log.info("Guardados {} powerups para la sesión {}", powerUps.size(), lobbyCode);
+    }
+
+    /**
+     * Verifica si hay un powerup en la posición (x, y).
+     * Si existe, lo ELIMINA del mapa (recolección) y lo devuelve.
+     */
+
+    public PowerUp checkAndCollectPowerUp(String lobbyCode, int x, int y) {
+        Map<String, PowerUp> powerUpMap = gamePowerUps.get(lobbyCode);
+            
+        if (powerUpMap != null) {
+            String key = x + "," + y;
+            return powerUpMap.remove(key);
+        }
+        return null;
+    }
+
+    /**
+     * Aplica un efecto a un jugador específico en la sesión.
+     */
+    public void applyEffect(String lobbyCode, String username, PowerUpType type, int durationSeconds) {
+        PlayerGameStateDTO player = getPlayer(lobbyCode, username);
+        if (player != null) {
+            long additionalMillis = durationSeconds * 1000L;
+            long now = Instant.now().toEpochMilli();
+            player.getActiveEffects().compute(type, (k, currentExpiration) -> {
+                //  No tiene el efecto O el efecto anterior ya expiró
+                if (currentExpiration == null || currentExpiration < now) {
+                    return now + additionalMillis;
+                } 
+        
+                // El efecto está activo
+                else {
+                    return currentExpiration + additionalMillis;
+                }
+            });
+
+            log.info("Efecto {} aplicado/acumulado a {} por {}s adicionales", type, username, durationSeconds);
+        }
+    }
+    
+
+    /**
+     * Aplica un efecto a TODOS los oponentes (excluyendo al que lo lanzó).
+     */
+    public void applyEffectToOpponents(String lobbyCode, String sourceUsername, PowerUpType type, int durationSeconds) {
+        List<PlayerGameStateDTO> allPlayers = getPlayers(lobbyCode);
+        for (PlayerGameStateDTO p : allPlayers) {
+            if (!p.getUsername().equals(sourceUsername)) { 
+                applyEffect(lobbyCode, p.getUsername(), type, durationSeconds);
+            }
+        }
+    }
+
+    /**
+     * Limpia los efectos expirados de un jugador.
+     */
+    public void cleanExpiredEffects(String lobbyCode, String username) {
+        PlayerGameStateDTO player = getPlayer(lobbyCode, username);
+        if (player != null && !player.getActiveEffects().isEmpty()) {
+            long now = Instant.now().toEpochMilli();
+            player.getActiveEffects().values().removeIf(expiration -> now > expiration);
+        }
+    }
+
+
+
+
 }

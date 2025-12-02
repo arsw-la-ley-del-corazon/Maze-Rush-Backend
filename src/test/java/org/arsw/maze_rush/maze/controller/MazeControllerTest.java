@@ -59,7 +59,7 @@ class MazeControllerTest {
         mockMaze.setSize("MEDIUM");
         mockMaze.setWidth(20);
         mockMaze.setHeight(20);
-        mockMaze.setLayout("{\"walls\": []}");
+        mockMaze.setLayout("[[1, 1, 1], [1, 0, 1], [1, 1, 1]]");
     }
 
     @Test
@@ -67,7 +67,7 @@ class MazeControllerTest {
         String sizeParam = "MEDIUM";
         when(mazeService.generateMaze(sizeParam)).thenReturn(mockMaze);
         mockMvc.perform(post("/api/v1/map/generate/{size}", sizeParam)
-                        .contentType(MediaType.APPLICATION_JSON))
+                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value(mazeId.toString()))
