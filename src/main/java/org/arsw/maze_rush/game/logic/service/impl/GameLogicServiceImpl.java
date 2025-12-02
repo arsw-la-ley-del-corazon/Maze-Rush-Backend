@@ -1,6 +1,8 @@
 package org.arsw.maze_rush.game.logic.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
+
+import org.arsw.maze_rush.game.dto.GameNotificationDTO;
 import org.arsw.maze_rush.game.dto.PlayerGameStateDTO;
 import org.arsw.maze_rush.game.dto.PositionDTO;
 import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
@@ -13,6 +15,7 @@ import org.arsw.maze_rush.maze.entities.MazeEntity;
 import org.arsw.maze_rush.powerups.entities.PowerUp;
 import org.arsw.maze_rush.powerups.entities.PowerUpType;
 import org.arsw.maze_rush.powerups.service.PowerUpService;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -28,14 +31,17 @@ public class GameLogicServiceImpl implements GameLogicService {
     private final GameRepository gameRepository;
     private final PowerUpService powerUpService;
     private final GameSessionManager gameSessionManager;
+    private final SimpMessagingTemplate messagingTemplate; 
 
     public GameLogicServiceImpl(
             GameRepository gameRepository, 
             PowerUpService powerUpService,
-            GameSessionManager gameSessionManager) {
+            GameSessionManager gameSessionManager,
+            SimpMessagingTemplate messagingTemplate) { 
         this.gameRepository = gameRepository;
         this.powerUpService = powerUpService;
         this.gameSessionManager = gameSessionManager;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Override
@@ -122,6 +128,8 @@ public class GameLogicServiceImpl implements GameLogicService {
                         lobbyCode, username, PowerUpType.CONFUSION, collected.getDuration());
             }
 
+            sendPowerUpNotification(lobbyCode, username, collected);
+
             // Actualizar visualmente el mapa
             updateMazeLayoutVisuals(maze, newX, newY);
             gameRepository.save(game);
@@ -171,9 +179,12 @@ public class GameLogicServiceImpl implements GameLogicService {
         GameState state = new GameState();
         state.setGameId(gameId);
         state.setStatus("EN_CURSO");
+        String lobbyCode = game.getLobby().getCode();
         if (game.getLobby().getMaze() != null) {
             state.setCurrentLayout(game.getLobby().getMaze().getLayout());
         }
+        List<PlayerGameStateDTO> livePlayers = gameSessionManager.getPlayers(lobbyCode);
+        state.setPlayers(livePlayers);
         
         return state;
     }
@@ -200,4 +211,23 @@ public class GameLogicServiceImpl implements GameLogicService {
         }
         return sb.toString().trim();
     }
+
+    private void sendPowerUpNotification(String lobbyCode, String username, PowerUp powerUp) {
+        String message = "";
+        switch (powerUp.getType()) {
+            case CLEAR_FOG -> message = username + " encontró una linterna y despejó la niebla.";
+            case FREEZE -> message = "¡" + username + " ha CONGELADO a todos los rivales!";
+            case CONFUSION -> message = "¡Cuidado! " + username + " lanzó un hechizo de CONFUSIÓN.";
+        }
+
+        GameNotificationDTO notification = GameNotificationDTO.builder()
+                .type("POWER_UP")
+                .message(message)
+                .sourceUser(username)
+                .powerUpType(powerUp.getType())
+                .build();
+        messagingTemplate.convertAndSend("/topic/game/" + lobbyCode + "/notifications", notification);
+    }
+
+
 }

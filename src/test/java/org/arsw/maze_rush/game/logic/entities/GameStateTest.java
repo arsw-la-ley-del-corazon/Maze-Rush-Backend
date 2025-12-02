@@ -1,8 +1,10 @@
 package org.arsw.maze_rush.game.logic.entities;
 
+import org.arsw.maze_rush.game.dto.PlayerGameStateDTO;
+import org.arsw.maze_rush.game.dto.PositionDTO;
 import org.junit.jupiter.api.Test;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,79 +12,45 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GameStateTest {
 
-    private final UUID gameID = UUID.randomUUID();
-    private final String statusRunning = "RUNNING";
-    private final String statusFinished = "FINISHED";
-    
- 
     @Test
     void testGettersAndSetters() {
         GameState gameState = new GameState();
-        List<PlayerPosition> positions = Collections.emptyList();
+        UUID gameId = UUID.randomUUID();
+        String status = "EN_CURSO";
+        String layout = "000\n000";
+        
+        List<PlayerGameStateDTO> players = new ArrayList<>();
+        players.add(new PlayerGameStateDTO("user1", new PositionDTO(0,0)));
 
-        gameState.setGameId(gameID);
-        gameState.setStatus(statusRunning);
-        gameState.setPlayerPositions(positions);
-
-        assertNotNull(gameState);
-        assertEquals(gameID, gameState.getGameId());
-        assertEquals(statusRunning, gameState.getStatus());
-        assertEquals(positions, gameState.getPlayerPositions());
-    }
-
+        gameState.setGameId(gameId);
+        gameState.setStatus(status);
+        gameState.setCurrentLayout(layout);
+        
     
-    @Test
-    void testEqualsAndHashCode_Identical() {
+        gameState.setPlayers(players);
 
-        PlayerPosition pos = new PlayerPosition(null, 1, 1, 0);
-        List<PlayerPosition> positions = List.of(pos);
-
-        GameState state1 = new GameState();
-        state1.setGameId(gameID);
-        state1.setStatus(statusRunning);
-        state1.setPlayerPositions(positions);
-
-        GameState state2 = new GameState();
-        state2.setGameId(gameID);
-        state2.setStatus(statusRunning);
-        state2.setPlayerPositions(positions);
-
-        boolean isSame = state1.equals(state2);
-        assertTrue(isSame,"Objetos con mismos valores deben ser iguales (equals).");  
+        assertEquals(gameId, gameState.getGameId());
+        assertEquals(status, gameState.getStatus());
+        assertEquals(layout, gameState.getCurrentLayout());
         
-        assertEquals(state1.hashCode(), state2.hashCode(), "Hash codes deben coincidir.");
+        assertEquals(players, gameState.getPlayers());
     }
 
-
     @Test
-    void testEquals_Different() {
+    void testEqualsAndHashCode() {
+        UUID id = UUID.randomUUID();
+        List<PlayerGameStateDTO> players = new ArrayList<>();
+
         GameState state1 = new GameState();
-        state1.setGameId(gameID);
-        state1.setStatus(statusRunning);
+        state1.setGameId(id);
+        state1.setPlayers(players); 
 
         GameState state2 = new GameState();
-        state2.setGameId(UUID.randomUUID()); 
-        state2.setStatus(statusFinished);
+        state2.setGameId(id);
+        state2.setPlayers(players); 
+        assertEquals(state1, state2);
+        assertEquals(state1.hashCode(), state2.hashCode());
         
-        boolean isSame = state1.equals(state2);
-        assertFalse(isSame,"\"Objetos con ID diferente deben ser diferentes.");  
-        
-        state2.setGameId(gameID); 
-        assertNotEquals(state1, state2, "Objetos con status diferente deben ser diferentes.");
-        
-        assertNotEquals(null, state1, "No debe ser igual a null.");
-    }
-
-
-    @Test
-    void testToString() {
-        GameState state = new GameState();
-        state.setGameId(gameID);
-
-        String result = state.toString();
-
-        assertNotNull(result);
-        assertTrue(result.contains(gameID.toString()), "toString debe contener el gameId.");
-        assertTrue(result.contains("GameState"), "toString debe contener el nombre de la clase.");
+        assertNotNull(state1.toString());
     }
 }

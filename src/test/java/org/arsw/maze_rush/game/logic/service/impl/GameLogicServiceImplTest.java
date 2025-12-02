@@ -20,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.Instant;
 import java.util.*;
@@ -34,6 +35,7 @@ class GameLogicServiceImplTest {
     @Mock private GameRepository gameRepository;
     @Mock private PowerUpService powerUpService;
     @Mock private GameSessionManager gameSessionManager; 
+    @Mock private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private GameLogicServiceImpl service;
@@ -217,6 +219,29 @@ class GameLogicServiceImplTest {
     }
 
     @Test
+    void movePlayer_CollectFreeze_ShouldNotifyAndApply() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO();
+        playerState.setUsername(username);
+        playerState.setPosition(new PositionDTO(0, 0));
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
+        // Simulamos recoger FREEZE
+        PowerUp powerUp = PowerUp.builder().type(PowerUpType.FREEZE).duration(3).x(1).y(0).build();
+        when(gameSessionManager.checkAndCollectPowerUp(lobbyCode, 1, 0)).thenReturn(powerUp);
+
+        service.movePlayer(gameId, new PlayerMoveRequestDTO(username, "RIGHT"));
+
+        // Efecto aplicado (Lógica)
+        verify(gameSessionManager).applyEffectToOpponents(lobbyCode, username, PowerUpType.FREEZE, 3);
+
+        // Notificación enviada (UX)
+        verify(messagingTemplate).convertAndSend(
+            eq("/topic/game/" + lobbyCode + "/notifications"),
+            any(org.arsw.maze_rush.game.dto.GameNotificationDTO.class)
+        );
+    }
+
+    @Test
     void movePlayer_CollectMultiplePowerUps_ShouldStackDuration() {
         when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
         
@@ -316,6 +341,35 @@ class GameLogicServiceImplTest {
         String firstRow = resultState.getCurrentLayout().split("\n")[0].trim();
         assertEquals("00", firstRow, "El GameState retornado debe tener el layout limpio (sin la P)");
     }
+
+    /**
+     * Verificar que la respuesta incluye los efectos activos.
+     */
+    @Test
+    void movePlayer_ResponseShouldIncludeActiveEffects() {
+        when(gameRepository.findById(gameId)).thenReturn(Optional.of(gameEntity));
+        // Jugador con un efecto activo (CONFUSION)
+        PlayerGameStateDTO playerState = new PlayerGameStateDTO();
+        playerState.setUsername(username);
+        playerState.setPosition(new PositionDTO(1, 1));
+        playerState.getActiveEffects().put(PowerUpType.CONFUSION, System.currentTimeMillis() + 10000); 
+        
+        when(gameSessionManager.getPlayer(lobbyCode, username)).thenReturn(playerState);
+        when(gameSessionManager.getPlayers(lobbyCode)).thenReturn(List.of(playerState));
+
+        GameState result = service.movePlayer(gameId, new PlayerMoveRequestDTO(username, "RIGHT"));
+
+        assertNotNull(result.getPlayers(), "La lista de jugadores no debe ser nula");
+        assertFalse(result.getPlayers().isEmpty());
+        
+        PlayerGameStateDTO resultPlayer = result.getPlayers().get(0);
+        assertEquals(username, resultPlayer.getUsername());
+        
+        assertTrue(resultPlayer.getActiveEffects().containsKey(PowerUpType.CONFUSION), 
+                   "El cliente debe recibir el mapa con el efecto de confusión activo");
+    }
+
+
     
     
     private UserEntity fakeUser(String username) {
