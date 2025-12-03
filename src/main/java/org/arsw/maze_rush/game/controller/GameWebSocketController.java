@@ -6,6 +6,7 @@ import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
 import org.arsw.maze_rush.game.logic.entities.GameState;
 import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.service.GameSessionManager;
+import org.arsw.maze_rush.users.service.UserStatsService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -32,13 +33,17 @@ public class GameWebSocketController {
     private final GameSessionManager sessionManager;
     private final SimpMessagingTemplate messagingTemplate;
     private final GameLogicService gameLogicService;
+    private final UserStatsService userStatsService;
+
     
     public GameWebSocketController(GameSessionManager sessionManager, 
                                    SimpMessagingTemplate messagingTemplate,
-                                   GameLogicService gameLogicService) { 
+                                   GameLogicService gameLogicService,
+                                   UserStatsService userStatsService) { 
         this.sessionManager = sessionManager;
         this.messagingTemplate = messagingTemplate;
         this.gameLogicService = gameLogicService; 
+        this.userStatsService = userStatsService;
     }
 
     /**
@@ -132,27 +137,37 @@ public class GameWebSocketController {
             Principal principal) {
         
         String username = extractUsername(payload, principal);
-        if (username == null) {
-            log.warn("Username no proporcionado en finish para lobby {}", lobbyCode);
-            return;
-        }
+        if (username == null) return;
 
-        // Marcar jugador como finalizado (calcula el tiempo internamente)
+        // Marcar finalizado en memoria
         sessionManager.markPlayerFinished(lobbyCode, username);
 
-        // Obtener tiempo para el broadcast
-        Long finishTime = sessionManager.getPlayer(lobbyCode, username) != null
-            ? sessionManager.getPlayer(lobbyCode, username).getFinishTime()
-            : 0L;
+        // Obtener datos del jugador
+        PlayerGameStateDTO player = sessionManager.getPlayer(lobbyCode, username);
+        long finishTime = (player != null) ? player.getFinishTime() : 0L;
 
-        // Broadcast del evento de finalización
+        
+        // Calcular si ganó 
+        long finishedCount = sessionManager.getPlayers(lobbyCode).stream()
+                .filter(PlayerGameStateDTO::getIsFinished)
+                .count();
+        boolean isWinner = (finishedCount == 1);
+
+        //  Llamar al servicio de estadísticas
+        try {
+            long durationMs = finishTime * 1000;
+            userStatsService.updateStats(username, isWinner, durationMs);
+            log.info("Estadísticas actualizadas para {}. Ganador: {}", username, isWinner);
+        } catch (Exception e) {
+            log.error("Error actualizando estadísticas para {}", username, e);
+            
+        }
+
+        //  Broadcast
         GameFinishDTO finishEvent = new GameFinishDTO(username, finishTime);
         messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX+ lobbyCode + MOVE_SUFFIX, finishEvent);
 
-        log.info("Jugador {} terminó el juego {} en {} segundos", 
-            username, lobbyCode, finishTime);
-
-        // Verificar si todos terminaron
+        log.info("Jugador {} terminó el juego {} en {} segundos", username, lobbyCode, finishTime);
         checkAllPlayersFinished(lobbyCode);
     }
 

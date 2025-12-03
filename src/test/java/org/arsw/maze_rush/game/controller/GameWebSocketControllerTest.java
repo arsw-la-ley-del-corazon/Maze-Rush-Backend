@@ -5,6 +5,7 @@ import org.arsw.maze_rush.game.logic.dto.PlayerMoveRequestDTO;
 import org.arsw.maze_rush.game.logic.entities.GameState;
 import org.arsw.maze_rush.game.logic.service.GameLogicService;
 import org.arsw.maze_rush.game.service.GameSessionManager;
+import org.arsw.maze_rush.users.service.UserStatsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
@@ -30,19 +31,21 @@ class GameWebSocketControllerTest {
     private GameLogicService gameLogicService; 
 
     @Mock
+    private UserStatsService userStatsService;
+
+    @Mock
     private Principal principal;
 
     @Mock
     private SimpMessageHeaderAccessor headerAccessor;
 
+    @InjectMocks
     private GameWebSocketController controller;
 
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
-
-        controller = new GameWebSocketController(sessionManager, messagingTemplate, gameLogicService);
-
+        controller = new GameWebSocketController(sessionManager, messagingTemplate, gameLogicService, userStatsService);
         when(principal.getName()).thenReturn("player1");
 
         Map<String, Object> sessionMap = new HashMap<>();
@@ -115,6 +118,8 @@ class GameWebSocketControllerTest {
         controller.handlePlayerFinish("L1", payload, principal);
 
         verify(sessionManager).markPlayerFinished("L1", "player1");
+
+        verify(userStatsService).updateStats(eq("player1"), eq(true), anyLong());
 
         verify(messagingTemplate).convertAndSend(
             eq("/topic/game/L1/move"),
