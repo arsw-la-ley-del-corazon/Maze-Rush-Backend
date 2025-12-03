@@ -45,18 +45,13 @@ class UserStatsServiceImplTest {
 
     @Test
     void updateStats_NewStats_ShouldCreateAndSave() {
-        // Arrange
         UserEntity user = new UserEntity();
         user.setUsername("player1");
         
         when(userRepository.findByUsernameIgnoreCase("player1")).thenReturn(Optional.of(user));
-        // Simulamos que no tiene estadísticas previas (Optional.empty)
         when(statsRepository.findByUser(user)).thenReturn(Optional.empty());
-
-        // Act: Jugador gana con tiempo 5000ms
         service.updateStats("player1", true, 5000L);
 
-        // Assert
         ArgumentCaptor<UserStatisticsEntity> captor = ArgumentCaptor.forClass(UserStatisticsEntity.class);
         verify(statsRepository).save(captor.capture());
         
@@ -69,31 +64,27 @@ class UserStatsServiceImplTest {
 
     @Test
     void updateStats_ExistingStats_ShouldUpdateAccumulatively() {
-        // Arrange
         UserEntity user = new UserEntity();
         UserStatisticsEntity existingStats = UserStatisticsEntity.builder()
                 .user(user)
                 .gamesPlayed(10)
                 .gamesWon(5)
-                .fastestTimeMs(2000L) // Récord actual 2s
+                .fastestTimeMs(2000L)
                 .build();
         
         when(userRepository.findByUsernameIgnoreCase("player1")).thenReturn(Optional.of(user));
         when(statsRepository.findByUser(user)).thenReturn(Optional.of(existingStats));
 
-        // Act: Jugador pierde (isWinner=false), tiempo irrelevante
         service.updateStats("player1", false, 9999L);
 
-        // Assert
         verify(statsRepository).save(existingStats);
-        assertEquals(11, existingStats.getGamesPlayed()); // +1
-        assertEquals(5, existingStats.getGamesWon());     // Igual
-        assertEquals(2000L, existingStats.getFastestTimeMs()); // Récord no cambia
+        assertEquals(11, existingStats.getGamesPlayed()); 
+        assertEquals(5, existingStats.getGamesWon());     
+        assertEquals(2000L, existingStats.getFastestTimeMs()); 
     }
 
     @Test
     void updateStats_NewRecord_ShouldUpdateFastestTime() {
-        // Arrange
         UserEntity user = new UserEntity();
         UserStatisticsEntity existingStats = UserStatisticsEntity.builder()
                 .fastestTimeMs(5000L)
@@ -102,10 +93,8 @@ class UserStatsServiceImplTest {
         when(userRepository.findByUsernameIgnoreCase("player1")).thenReturn(Optional.of(user));
         when(statsRepository.findByUser(user)).thenReturn(Optional.of(existingStats));
 
-        // Act: Gana con 3000ms (Nuevo récord)
         service.updateStats("player1", true, 3000L);
 
-        // Assert
         assertEquals(3000L, existingStats.getFastestTimeMs());
     }
 

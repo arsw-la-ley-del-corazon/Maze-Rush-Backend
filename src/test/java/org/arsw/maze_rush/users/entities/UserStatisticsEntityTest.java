@@ -8,15 +8,15 @@ class UserStatisticsEntityTest {
 
     @Test
     void testLombokGeneratedMethods() {
-        // 1. Instancias
+        //  Instancias
         UUID id = UUID.randomUUID();
         UserEntity user = new UserEntity();
         
         UserStatisticsEntity stats1 = new UserStatisticsEntity(id, user, 10, 5, 20, 1000L);
         UserStatisticsEntity stats2 = new UserStatisticsEntity(id, user, 10, 5, 20, 1000L);
-        UserStatisticsEntity stats3 = new UserStatisticsEntity(); // Diferente
+        UserStatisticsEntity stats3 = new UserStatisticsEntity(); 
 
-        // 2. Equals
+        // Equals
         assertEquals(stats1, stats2);
         boolean isReflexive = stats1.equals(stats1);
         assertTrue(isReflexive, "Debe ser igual a sí mismo (Reflexivo)");
@@ -24,11 +24,11 @@ class UserStatisticsEntityTest {
         assertNotEquals(null, stats1);
         assertNotEquals(stats1, new Object());
 
-        // 3. HashCode
+        //  HashCode
         assertEquals(stats1.hashCode(), stats2.hashCode());
         assertNotEquals(stats1.hashCode(), stats3.hashCode());
 
-        // 4. ToString
+        //  ToString
         String s = stats1.toString();
         assertNotNull(s);
         assertTrue(s.contains("UserStatisticsEntity"));
@@ -39,7 +39,6 @@ class UserStatisticsEntityTest {
     void testBuilderAndNoArgsConstructor() {
         UserStatisticsEntity stats = new UserStatisticsEntity();
         assertNull(stats.getId());
-        // Verificamos @Builder.Default
         assertEquals(0, stats.getGamesPlayed()); 
         
         UserStatisticsEntity built = UserStatisticsEntity.builder()
@@ -52,15 +51,15 @@ class UserStatisticsEntityTest {
     void testUpdateFastestTime() {
         UserStatisticsEntity stats = new UserStatisticsEntity();
         
-        // Caso 1: No hay tiempo previo (null) -> Se actualiza
+        // No hay tiempo previo (null) -> Se actualiza
         stats.updateFastestTime(5000L);
         assertEquals(5000L, stats.getFastestTimeMs());
 
-        // Caso 2: Nuevo tiempo es PEOR (mayor) -> NO se actualiza
+        // Nuevo tiempo es PEOR (mayor) -> NO se actualiza
         stats.updateFastestTime(6000L);
         assertEquals(5000L, stats.getFastestTimeMs());
 
-        // Caso 3: Nuevo tiempo es MEJOR (menor) -> Se actualiza
+        // Nuevo tiempo es MEJOR (menor) -> Se actualiza
         stats.updateFastestTime(4000L);
         assertEquals(4000L, stats.getFastestTimeMs());
     }
