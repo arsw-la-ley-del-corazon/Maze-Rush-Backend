@@ -3,8 +3,13 @@ package org.arsw.maze_rush.users.entities;
 import java.time.Instant;
 import java.util.UUID;
 
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -22,6 +27,7 @@ import lombok.ToString;
 @ToString(exclude = {"password"})
 public class UserEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id", nullable = false, unique = true, columnDefinition = "uuid")
     private UUID id;
 
@@ -31,8 +37,8 @@ public class UserEntity {
     @Column(name = "email", nullable = false, unique = true, length = 254)
     private String email;
 
-    @Column(name = "password", nullable = false, length = 60)
-    private String password; // almacena el hash (BCrypt ~60 chars)
+    @Column(name = "password", length = 60)
+    private String password; // almacena el hash (BCrypt ~60 chars) - nullable para OAuth2
 
     @Column(name = "score", nullable = false)
     private int score = 0;
@@ -40,12 +46,30 @@ public class UserEntity {
     @Column(name = "level", nullable = false)
     private int level = 1;
 
+    @Column(name = "bio", length = 200)
+    private String bio;
+
+    @Column(name = "avatar_color", length = 7)
+    private String avatarColor = "#A46AFF";
+
+    @Column(name = "preferred_maze_size", length = 20)
+    private String preferredMazeSize = "Mediano";
+
+    // Campos para OAuth2
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 20)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "provider_id", length = 100)
+    private String providerId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    
     @PrePersist
     @SuppressWarnings("unused")
     void onCreate() {

@@ -4,9 +4,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Schema(name = "UserRequest", description = "Datos de entrada para crear o actualizar un usuario")
 public class UserRequestDTO {
     
@@ -40,5 +45,6 @@ public class UserRequestDTO {
     )
     @NotBlank
     @Size(min = 8, max = 72)
+    @ToString.Exclude
     private String password;
 }

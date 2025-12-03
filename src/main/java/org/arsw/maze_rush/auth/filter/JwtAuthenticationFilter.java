@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.arsw.maze_rush.auth.service.AuthService;
+import org.arsw.maze_rush.auth.util.CookieUtil;
 import org.arsw.maze_rush.auth.util.JwtUtil;
 import org.arsw.maze_rush.users.entities.UserEntity;
 import org.arsw.maze_rush.users.repository.UserRepository;
@@ -26,11 +27,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final AuthService authService;
     private final UserRepository userRepository;
+    private final CookieUtil cookieUtil;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil, AuthService authService, UserRepository userRepository) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil, AuthService authService, 
+                                   UserRepository userRepository, CookieUtil cookieUtil) {
         this.jwtUtil = jwtUtil;
         this.authService = authService;
         this.userRepository = userRepository;
+        this.cookieUtil = cookieUtil;
     }
 
     @Override
@@ -39,16 +43,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
+        String jwt = null;
         final String username;
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        // Primero intentar obtener el token desde las cookies
+        Optional<String> cookieToken = cookieUtil.getCookieValue(request, CookieUtil.ACCESS_TOKEN_COOKIE);
+        
+        if (cookieToken.isPresent()) {
+            jwt = cookieToken.get();
+        } else {
+            // Fallback: intentar desde el header Authorization (para compatibilidad)
+            final String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                jwt = authHeader.substring(7);
+            }
+        }
+
+        // Si no hay token, continuar sin autenticación
+        if (jwt == null) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        jwt = authHeader.substring(7);
         
         try {
             username = jwtUtil.getUsernameFromToken(jwt);
@@ -57,19 +72,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            // Validar token usando el servicio de autenticación (incluye blacklist)
-            if (authService.validateToken(jwt)) {
-                // Crear UserDetails mínimo para Spring Security
-                UserDetails userDetails = createUserDetails(username);
-                
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities()
-                );
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-            }
+        if (username != null 
+                && SecurityContextHolder.getContext().getAuthentication() == null 
+                && authService.validateToken(jwt)) {
+
+            UserDetails userDetails = createUserDetails(username);
+
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
         }
+
         filterChain.doFilter(request, response);
     }
 

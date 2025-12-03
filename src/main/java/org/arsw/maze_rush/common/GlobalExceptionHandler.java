@@ -1,11 +1,14 @@
 package org.arsw.maze_rush.common;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
+import org.arsw.maze_rush.common.exceptions.BadRequestException;
 import org.arsw.maze_rush.common.exceptions.ConflictException;
+import org.arsw.maze_rush.common.exceptions.LobbyInUseException;
 import org.arsw.maze_rush.common.exceptions.NotFoundException;
 import org.arsw.maze_rush.common.exceptions.UnauthorizedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -16,12 +19,14 @@ import org.springframework.web.context.request.WebRequest;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidationException(MethodArgumentNotValidException ex, WebRequest request) {
         List<String> details = ex.getBindingResult().getFieldErrors().stream()
                 .map(this::formatFieldError)
-                .collect(Collectors.toList());
+                .toList();
         ApiError error = new ApiError();
         error.setStatus(HttpStatus.BAD_REQUEST.value());
         error.setError(HttpStatus.BAD_REQUEST.getReasonPhrase());
@@ -45,9 +50,25 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex, WebRequest request) {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
     }
+    
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiError> handleBadRequest(BadRequestException ex, WebRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(LobbyInUseException.class)
+    public ResponseEntity<ApiError> handleLobbyInUse(LobbyInUseException ex, WebRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex, WebRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleOther(Exception ex, WebRequest request) {
+        logger.error("Error no controlado", ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), request);
     }
 

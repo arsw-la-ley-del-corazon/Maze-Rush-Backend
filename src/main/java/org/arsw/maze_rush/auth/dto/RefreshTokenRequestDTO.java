@@ -10,8 +10,7 @@ public class RefreshTokenRequestDTO {
     
     @Schema(
         description = "Token de renovación para obtener un nuevo token de acceso", 
-        example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        required = true
+        example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     )
     @NotBlank(message = "El refresh token es obligatorio")
     private String refreshToken;
