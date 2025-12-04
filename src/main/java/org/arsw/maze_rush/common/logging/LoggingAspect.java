@@ -73,9 +73,10 @@ public class LoggingAspect {
             
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            String errorMessage = String.format("X Error en %s.%s() después de %dms", 
-                                            className, methodName, duration);
-            throw new IllegalStateException(errorMessage, e);
+            logger.error("X Error en {}.{}() después de {}ms: {} - {}", 
+                className, methodName, duration, e.getClass().getSimpleName(), e.getMessage());
+            // Re-lanzar la excepción original para mantener el flujo de errores correcto
+            throw e;
         }
     }
 
