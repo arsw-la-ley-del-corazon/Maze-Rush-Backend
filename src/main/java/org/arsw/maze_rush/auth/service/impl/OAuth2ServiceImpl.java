@@ -32,7 +32,6 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private final JwtUtil jwtUtil;
     private final RestTemplate restTemplate;
     private final String googleClientId;
-    private OAuth2Service self;
 
     public OAuth2ServiceImpl(
             UserRepository userRepository,
@@ -81,7 +80,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             if (!emailVerified) {
                 throw new UnauthorizedException("El email no está verificado en Google");
             }
-            return self.processOAuth2User(email, name, providerId, null);
+            return processOAuth2User(email, name, providerId, null);
 
         } catch (Exception e) {
             log.error("Error al verificar token de Google", e);

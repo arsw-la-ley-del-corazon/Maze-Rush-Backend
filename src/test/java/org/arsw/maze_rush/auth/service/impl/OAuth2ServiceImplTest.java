@@ -2,7 +2,6 @@ package org.arsw.maze_rush.auth.service.impl;
 
 import org.arsw.maze_rush.auth.dto.AuthResponseDTO;
 import org.arsw.maze_rush.auth.dto.OAuth2LoginRequestDTO;
-import org.arsw.maze_rush.auth.service.OAuth2Service;
 import org.arsw.maze_rush.auth.util.JwtUtil;
 import org.arsw.maze_rush.common.exceptions.UnauthorizedException;
 import org.arsw.maze_rush.users.entities.AuthProvider;
@@ -45,9 +44,6 @@ class OAuth2ServiceImplTest {
     @Mock
     private RestTemplate restTemplate;
 
-    @Mock
-    private OAuth2Service selfMock;
-
     private OAuth2ServiceImpl oauth2Service;
 
     private final String googleClientID = "my-google-client-id";
@@ -56,7 +52,6 @@ class OAuth2ServiceImplTest {
     void setUp() {
         oauth2Service = new OAuth2ServiceImpl(userRepository, jwtUtil, googleClientID);
         ReflectionTestUtils.setField(oauth2Service, "restTemplate", restTemplate);
-        ReflectionTestUtils.setField(oauth2Service, "self", selfMock); 
     }
 
 
@@ -72,7 +67,7 @@ class OAuth2ServiceImplTest {
         googleResponse.put("sub", "123456");
         googleResponse.put("email_verified", true);
 
-        //  Mock RestTemplate (Validación Google OK)
+        // Mock RestTemplate (Validación Google OK)
         when(restTemplate.exchange(
                 anyString(),
                 eq(HttpMethod.GET),
@@ -80,22 +75,27 @@ class OAuth2ServiceImplTest {
                 ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()
         )).thenReturn(new ResponseEntity<>(googleResponse, HttpStatus.OK));
 
-        // Mock de la llamada interna a self.processOAuth2User
-        AuthResponseDTO expectedResponse = new AuthResponseDTO();
-        expectedResponse.setAccessToken("mocked-access-token");
-        
-        when(selfMock.processOAuth2User(anyString(), anyString(), anyString(), any()))
-                .thenReturn(expectedResponse);
+        // Mock para processOAuth2User (que ahora se llama directamente)
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(eq("test@gmail.com"), eq(AuthProvider.GOOGLE)))
+                .thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(eq("test@gmail.com"), eq(AuthProvider.LOCAL)))
+                .thenReturn(Optional.empty());
+        when(userRepository.existsByUsernameIgnoreCase(anyString())).thenReturn(false);
+        when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> {
+            UserEntity user = invocation.getArgument(0);
+            user.setId(UUID.randomUUID());
+            return user;
+        });
+        when(jwtUtil.generateAccessToken(anyString())).thenReturn("mocked-access-token");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mocked-refresh-token");
+        when(jwtUtil.getAccessTokenExpiration()).thenReturn(3600L);
 
-        //  Ejecutar
+        // Ejecutar
         AuthResponseDTO response = oauth2Service.authenticateWithGoogle(request);
 
-        //  Verificar
+        // Verificar
         assertNotNull(response);
         assertEquals("mocked-access-token", response.getAccessToken());
-        
-        // Verificamos que se llamó al método transaccional a través del proxy (self)
-        verify(selfMock).processOAuth2User(eq("test@gmail.com"), eq("Test User"), eq("123456"), any());
     }
 
     @Test
