@@ -15,7 +15,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    @Value("${app.domain.front:*}")
+    @Value("${app.websocket.allowed-origins:http://localhost:3000,http://localhost:5173,https://maze-rush-frontend.vercel.app}")
     private String allowedOrigins;
 
     @Override
@@ -35,7 +35,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Registra el endpoint WebSocket que los clientes usarán para conectarse
         registry.addEndpoint("/ws")
-                .setAllowedOrigins(allowedOrigins.split(","))
+                .setAllowedOriginPatterns(allowedOrigins.split(","))
                 .withSockJS(); // Fallback a SockJS para navegadores que no soportan WebSocket
     }
 }

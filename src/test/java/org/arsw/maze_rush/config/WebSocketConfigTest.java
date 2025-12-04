@@ -58,8 +58,8 @@ class WebSocketConfigTest {
         //  Cuando se llame a addEndpoint("/ws"), devolver el mock de registro
         when(stompEndpointRegistry.addEndpoint("/ws")).thenReturn(endpointRegistration);
         
-        // Cuando se llame a setAllowedOrigins(...), devolver el mismo mock de registro (para poder seguir encadenando)
-        when(endpointRegistration.setAllowedOrigins(any(String[].class))).thenReturn(endpointRegistration);
+        // Cuando se llame a setAllowedOriginPatterns(...), devolver el mismo mock de registro (para poder seguir encadenando)
+        when(endpointRegistration.setAllowedOriginPatterns(any(String[].class))).thenReturn(endpointRegistration);
 
         webSocketConfig.registerStompEndpoints(stompEndpointRegistry);
 
@@ -67,7 +67,7 @@ class WebSocketConfigTest {
         verify(stompEndpointRegistry).addEndpoint("/ws");
         
         // Verificamos que se pasaron los orígenes parseados correctamente (split por coma)
-        verify(endpointRegistration).setAllowedOrigins("http://localhost:3000", "http://example.com");
+        verify(endpointRegistration).setAllowedOriginPatterns("http://localhost:3000", "http://example.com");
         
         // Verificamos que se habilitó SockJS
         verify(endpointRegistration).withSockJS();
