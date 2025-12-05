@@ -95,14 +95,14 @@ class LoggingAspectTest {
         when(pjp.getArgs()).thenReturn(new Object[] {});
         when(pjp.proceed()).thenThrow(new IllegalArgumentException("Fail Original"));
 
-        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> aspect.logMethodExecution(pjp));
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () -> aspect.logMethodExecution(pjp));
         
-        assertTrue(thrown.getMessage().contains("X Error en"));
-        assertEquals("Fail Original", thrown.getCause().getMessage());
+        assertEquals("Fail Original", thrown.getMessage());
 
         verify(mockLogger, times(1)).debug(anyString(), any(), any(), any());
 
-        verify(mockLogger, never()).error(anyString(), any(Object[].class)); 
+        verify(mockLogger, times(1)).error(eq("X Error en {}.{}() después de {}ms: {} - {}"), 
+            eq("DummyService"), eq("testMethod"), anyLong(), eq("IllegalArgumentException"), eq("Fail Original"));
         verify(mockLogger, never()).warn(anyString(), any(Object[].class));
     }
 

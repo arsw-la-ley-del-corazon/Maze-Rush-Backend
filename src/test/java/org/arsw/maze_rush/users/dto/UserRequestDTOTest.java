@@ -95,7 +95,7 @@ class UserRequestDTOTest {
         UserRequestDTO dto = new UserRequestDTO();
         
         Set<ConstraintViolation<UserRequestDTO>> violationsNull = validator.validate(dto);
-        assertEquals(0, violationsNull.stream().filter(v -> v.getMessage().contains("no debe estar vacío")).count());
+        assertEquals(3, violationsNull.stream().filter(v -> v.getMessage().contains("no debe estar vacío")).count());
 
         dto.setUsername("");
         dto.setEmail("");
