@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 class GameMoveDTOTest {
 
     private static final String USERNAME = "movingPlayer";
+    private static final String TYPE = "move";
     private static final Instant testTimeStamp = Instant.parse("2025-10-26T10:00:00Z");
     
     private final PositionDTO testPosition = new PositionDTO(10, 20); 
@@ -31,8 +32,9 @@ class GameMoveDTOTest {
 
     @Test
     void testAllArgsConstructor() {
-        GameMoveDTO dto = new GameMoveDTO(USERNAME, testPosition, testTimeStamp);
+        GameMoveDTO dto = new GameMoveDTO(TYPE, USERNAME, testPosition, testTimeStamp);
 
+        assertEquals(TYPE, dto.getType());
         assertEquals(USERNAME, dto.getUsername());
         assertEquals(testPosition, dto.getPosition());
         assertEquals(testTimeStamp, dto.getTimestamp());
@@ -46,6 +48,7 @@ class GameMoveDTOTest {
         
         Instant after = Instant.now().plus(1, ChronoUnit.SECONDS); 
 
+        assertEquals(TYPE, dto.getType());
         assertEquals(USERNAME, dto.getUsername());
         assertEquals(testPosition, dto.getPosition());
         
@@ -59,8 +62,8 @@ class GameMoveDTOTest {
 
     @Test
     void testEqualsAndHashCodeSameFields() {
-        GameMoveDTO dto1 = new GameMoveDTO(USERNAME, testPosition, testTimeStamp);
-        GameMoveDTO dto2 = new GameMoveDTO(USERNAME, testPosition, testTimeStamp);
+        GameMoveDTO dto1 = new GameMoveDTO(TYPE, USERNAME, testPosition, testTimeStamp);
+        GameMoveDTO dto2 = new GameMoveDTO(TYPE, USERNAME, testPosition, testTimeStamp);
         
         assertEquals(dto1, dto2);
         assertEquals(dto1.hashCode(), dto2.hashCode());
@@ -72,21 +75,21 @@ class GameMoveDTOTest {
 
     @Test
     void testNotEqualsDifferentFields() {
-        GameMoveDTO dtoBase = new GameMoveDTO(USERNAME, testPosition, testTimeStamp);
+        GameMoveDTO dtoBase = new GameMoveDTO(TYPE, USERNAME, testPosition, testTimeStamp);
         
-        GameMoveDTO dtoDiffUser = new GameMoveDTO("otherUser", testPosition, testTimeStamp);
+        GameMoveDTO dtoDiffUser = new GameMoveDTO(TYPE, "otherUser", testPosition, testTimeStamp);
         assertNotEquals(dtoBase, dtoDiffUser);
 
-        GameMoveDTO dtoDiffPos = new GameMoveDTO(USERNAME, anotherPosition, testTimeStamp);
+        GameMoveDTO dtoDiffPos = new GameMoveDTO(TYPE, USERNAME, anotherPosition, testTimeStamp);
         assertNotEquals(dtoBase, dtoDiffPos);
 
-        GameMoveDTO dtoDiffTime = new GameMoveDTO(USERNAME, testPosition, testTimeStamp.plusSeconds(1));
+        GameMoveDTO dtoDiffTime = new GameMoveDTO(TYPE, USERNAME, testPosition, testTimeStamp.plusSeconds(1));
         assertNotEquals(dtoBase, dtoDiffTime);
     }
 
     @Test
     void testToStringIsCorrect() {
-        GameMoveDTO dto = new GameMoveDTO(USERNAME, testPosition, testTimeStamp);
+        GameMoveDTO dto = new GameMoveDTO(TYPE, USERNAME, testPosition, testTimeStamp);
 
         String result = dto.toString();
         

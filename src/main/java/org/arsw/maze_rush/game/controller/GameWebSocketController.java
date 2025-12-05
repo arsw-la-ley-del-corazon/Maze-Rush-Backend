@@ -82,6 +82,10 @@ public class GameWebSocketController {
      * Maneja movimientos de jugadores
      * Los clientes envían a: /app/game/{lobbyCode}/move
      * Respuesta broadcast a: /topic/game/{lobbyCode}/move
+     * 
+     * Acepta dos formatos:
+     * 1. {username, position: {x, y}} - posición directa del frontend
+     * 2. {username, direction, gameId} - para lógica compleja con power-ups
      */
     @MessageMapping("/game/{lobbyCode}/move")
     public void handlePlayerMove(
@@ -92,15 +96,43 @@ public class GameWebSocketController {
         String username = extractUsername(payload, principal);
         if (username == null) return;
 
+        // Verificar si viene posición directa del frontend
+        @SuppressWarnings("unchecked")
+        Map<String, Object> positionMap = (Map<String, Object>) payload.get("position");
+        
+        if (positionMap != null) {
+            // Modo simple: actualizar posición directamente
+            try {
+                int x = ((Number) positionMap.get("x")).intValue();
+                int y = ((Number) positionMap.get("y")).intValue();
+                
+                PositionDTO newPosition = new PositionDTO(x, y);
+                sessionManager.updatePlayerPosition(lobbyCode, username, newPosition);
+                
+                // Crear evento de movimiento para broadcast
+                PlayerGameStateDTO playerState = sessionManager.getPlayer(lobbyCode, username);
+                if (playerState != null) {
+                    GameMoveDTO moveEvent = new GameMoveDTO(username, newPosition);
+                    messagingTemplate.convertAndSend(TOPIC_GAME_PREFIX + lobbyCode + MOVE_SUFFIX, moveEvent);
+                    log.debug("Movimiento broadcast para {} en {}: ({}, {})", username, lobbyCode, x, y);
+                }
+                return;
+            } catch (Exception e) {
+                log.error("Error procesando posición directa: {}", e.getMessage());
+                return;
+            }
+        }
+
+        // Modo avanzado: usar GameLogicService con direction y gameId
         String direction = (String) payload.get("direction");
         if (direction == null) {
-            log.warn("Dirección no proporcionada en move para {}", username);
+            log.warn("Ni posición ni dirección proporcionada en move para {}", username);
             return;
         }
 
         String gameIdStr = (String) payload.get("gameId");
         if (gameIdStr == null) {
-             log.error("Falta gameId en el payload de movimiento");
+             log.error("Falta gameId en el payload de movimiento con dirección");
              return;
         }
         
