@@ -13,11 +13,13 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameMoveDTO {
+    private String type = "move";
     private String username;
     private PositionDTO position;
     private Instant timestamp;
     
     public GameMoveDTO(String username, PositionDTO position) {
+        this.type = "move";
         this.username = username;
         this.position = position;
         this.timestamp = Instant.now();

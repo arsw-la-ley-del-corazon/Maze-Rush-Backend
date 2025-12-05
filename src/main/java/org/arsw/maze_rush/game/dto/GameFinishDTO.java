@@ -13,11 +13,13 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameFinishDTO {
+    private String type = "finish";
     private String username;
     private Long finishTime; // Tiempo en segundos
     private Instant timestamp;
     
     public GameFinishDTO(String username, Long finishTime) {
+        this.type = "finish";
         this.username = username;
         this.finishTime = finishTime;
         this.timestamp = Instant.now();

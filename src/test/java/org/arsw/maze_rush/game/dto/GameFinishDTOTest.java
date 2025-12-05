@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 class GameFinishDTOTest {
 
     private static final String USERNAME = "speedRunner";
+    private static final String TYPE = "finish";
     private static final Long FINISH_TIME = 155L; 
     private static final Instant TEST_TIMESTAMP = Instant.parse("2025-10-26T10:00:00Z");
 
@@ -29,8 +30,9 @@ class GameFinishDTOTest {
 
     @Test
     void testAllArgsConstructor() {
-        GameFinishDTO dto = new GameFinishDTO(USERNAME, FINISH_TIME, TEST_TIMESTAMP);
+        GameFinishDTO dto = new GameFinishDTO(TYPE, USERNAME, FINISH_TIME, TEST_TIMESTAMP);
 
+        assertEquals(TYPE, dto.getType());
         assertEquals(USERNAME, dto.getUsername());
         assertEquals(FINISH_TIME, dto.getFinishTime());
         assertEquals(TEST_TIMESTAMP, dto.getTimestamp());
@@ -44,6 +46,7 @@ class GameFinishDTOTest {
         
         Instant after = Instant.now().plus(1, ChronoUnit.SECONDS); 
 
+        assertEquals(TYPE, dto.getType());
         assertEquals(USERNAME, dto.getUsername());
         assertEquals(FINISH_TIME, dto.getFinishTime());
         
@@ -57,8 +60,8 @@ class GameFinishDTOTest {
 
     @Test
     void testEqualsAndHashCodeSameFields() {
-        GameFinishDTO dto1 = new GameFinishDTO(USERNAME, FINISH_TIME, TEST_TIMESTAMP);
-        GameFinishDTO dto2 = new GameFinishDTO(USERNAME, FINISH_TIME, TEST_TIMESTAMP);
+        GameFinishDTO dto1 = new GameFinishDTO(TYPE, USERNAME, FINISH_TIME, TEST_TIMESTAMP);
+        GameFinishDTO dto2 = new GameFinishDTO(TYPE, USERNAME, FINISH_TIME, TEST_TIMESTAMP);
         
         assertEquals(dto1, dto2);
         assertEquals(dto1.hashCode(), dto2.hashCode());
@@ -70,21 +73,21 @@ class GameFinishDTOTest {
 
     @Test
     void testNotEqualsDifferentFields() {
-        GameFinishDTO dtoBase = new GameFinishDTO(USERNAME, FINISH_TIME, TEST_TIMESTAMP);
+        GameFinishDTO dtoBase = new GameFinishDTO(TYPE, USERNAME, FINISH_TIME, TEST_TIMESTAMP);
 
-        GameFinishDTO dtoDiffUser = new GameFinishDTO("otherUser", FINISH_TIME, TEST_TIMESTAMP);
+        GameFinishDTO dtoDiffUser = new GameFinishDTO(TYPE, "otherUser", FINISH_TIME, TEST_TIMESTAMP);
         assertNotEquals(dtoBase, dtoDiffUser);
 
-        GameFinishDTO dtoDiffFinish = new GameFinishDTO(USERNAME, 100L, TEST_TIMESTAMP);
+        GameFinishDTO dtoDiffFinish = new GameFinishDTO(TYPE, USERNAME, 100L, TEST_TIMESTAMP);
         assertNotEquals(dtoBase, dtoDiffFinish);
 
-        GameFinishDTO dtoDiffTime = new GameFinishDTO(USERNAME, FINISH_TIME, TEST_TIMESTAMP.plusSeconds(1));
+        GameFinishDTO dtoDiffTime = new GameFinishDTO(TYPE, USERNAME, FINISH_TIME, TEST_TIMESTAMP.plusSeconds(1));
         assertNotEquals(dtoBase, dtoDiffTime);
     }
 
     @Test
     void testToStringIsCorrect() {
-        GameFinishDTO dto = new GameFinishDTO(USERNAME, FINISH_TIME, TEST_TIMESTAMP);
+        GameFinishDTO dto = new GameFinishDTO(TYPE, USERNAME, FINISH_TIME, TEST_TIMESTAMP);
 
         String result = dto.toString();
         
