@@ -137,6 +137,6 @@ class UserStatsServiceImplTest {
         assertEquals(10, result.getGamesPlayed());
         assertEquals(8, result.getGamesWon());
         assertEquals(1234L, result.getFastestTimeMs());
-        assertEquals(80.0, result.getWinRate()); // 8/10 * 100
+        assertEquals(80.0, result.getWinRate()); 
     }
 }
