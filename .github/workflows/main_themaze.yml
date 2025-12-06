@@ -58,7 +58,7 @@ jobs:
     needs: build
     uses: ./.github/workflows/sonar-scan.yml
     with:
-      project_key: "Maze-Rush-Backend"
+      project_key: "la-ley-del-corazon_maze-rush"
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
