@@ -38,7 +38,7 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=${{ inputs.project_key }}
-            -Dsonar.organization=tu-organizacion
+            -Dsonar.organization="la-ley-del-corazon_maze-rush"
             -Dsonar.sources=src/main/java
             -Dsonar.tests=src/test/java
             -Dsonar.java.binaries=. 
