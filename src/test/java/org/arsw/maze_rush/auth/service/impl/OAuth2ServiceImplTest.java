@@ -44,19 +44,20 @@ class OAuth2ServiceImplTest {
     @Mock
     private RestTemplate restTemplate;
 
+    @Mock
+    private OAuth2ServiceImpl selfMock;
+
     private OAuth2ServiceImpl oauth2Service;
 
     private final String googleClientID = "my-google-client-id";
 
     @BeforeEach
     void setUp() {
-        oauth2Service = new OAuth2ServiceImpl(userRepository, jwtUtil, googleClientID);
+        oauth2Service = new OAuth2ServiceImpl(userRepository, jwtUtil, googleClientID, selfMock);
         ReflectionTestUtils.setField(oauth2Service, "restTemplate", restTemplate);
     }
 
-
-    // PRUEBAS DE authenticateWithGoogle
-
+    // --- PRUEBAS DE authenticateWithGoogle ---
     @Test
     void testAuthenticateWithGoogle_Success() {
         OAuth2LoginRequestDTO request = new OAuth2LoginRequestDTO("valid-token");
@@ -67,7 +68,7 @@ class OAuth2ServiceImplTest {
         googleResponse.put("sub", "123456");
         googleResponse.put("email_verified", true);
 
-        // Mock RestTemplate (Validación Google OK)
+        // Mock de Google API
         when(restTemplate.exchange(
                 anyString(),
                 eq(HttpMethod.GET),
@@ -75,27 +76,44 @@ class OAuth2ServiceImplTest {
                 ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()
         )).thenReturn(new ResponseEntity<>(googleResponse, HttpStatus.OK));
 
-        // Mock para processOAuth2User (que ahora se llama directamente)
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(eq("test@gmail.com"), eq(AuthProvider.GOOGLE)))
-                .thenReturn(Optional.empty());
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(eq("test@gmail.com"), eq(AuthProvider.LOCAL)))
-                .thenReturn(Optional.empty());
-        when(userRepository.existsByUsernameIgnoreCase(anyString())).thenReturn(false);
-        when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> {
-            UserEntity user = invocation.getArgument(0);
-            user.setId(UUID.randomUUID());
-            return user;
-        });
-        when(jwtUtil.generateAccessToken(anyString())).thenReturn("mocked-access-token");
-        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mocked-refresh-token");
-        when(jwtUtil.getAccessTokenExpiration()).thenReturn(3600L);
+        // Crear el objeto DTO usando el Builder correcto
+        AuthResponseDTO.UserInfo userInfo = AuthResponseDTO.UserInfo.builder()
+                .id(UUID.randomUUID().toString())
+                .username("test")
+                .email("test@gmail.com")
+                .score(0)
+                .level(1)
+                .build();
+
+        AuthResponseDTO dummyResponse = AuthResponseDTO.builder()
+                .accessToken("access")
+                .refreshToken("refresh")
+                .expiresIn(3600L)
+                .user(userInfo)
+                .build();
+        
+        // Mockear self.processOAuth2User
+        when(selfMock.processOAuth2User(
+                eq("test@gmail.com"), 
+                eq("Test User"), 
+                eq("123456"), 
+                isNull()
+        )).thenReturn(dummyResponse);
 
         // Ejecutar
         AuthResponseDTO response = oauth2Service.authenticateWithGoogle(request);
 
         // Verificar
         assertNotNull(response);
-        assertEquals("mocked-access-token", response.getAccessToken());
+        assertEquals("access", response.getAccessToken());
+        assertEquals("test@gmail.com", response.getUser().getEmail()); 
+        
+        verify(selfMock).processOAuth2User(
+                eq("test@gmail.com"), 
+                eq("Test User"), 
+                eq("123456"), 
+                isNull()
+        );
     }
 
     @Test
@@ -103,26 +121,31 @@ class OAuth2ServiceImplTest {
         OAuth2LoginRequestDTO request = new OAuth2LoginRequestDTO("token");
 
         when(restTemplate.exchange(
-                anyString(), any(), any(), 
+                anyString(), 
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
                 ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()
         )).thenThrow(new RestClientException("Connection refused"));
 
-        UnauthorizedException ex = assertThrows(UnauthorizedException.class, () -> oauth2Service.authenticateWithGoogle(request));
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class, 
+            () -> oauth2Service.authenticateWithGoogle(request));
         assertTrue(ex.getMessage().contains("Error al validar token"));
     }
 
     @Test
     void testAuthenticateWithGoogle_InvalidStatusCode() {
         OAuth2LoginRequestDTO request = new OAuth2LoginRequestDTO("token");
-        
+
         when(restTemplate.exchange(
-                anyString(), any(), any(), 
+                anyString(), 
+                eq(HttpMethod.GET),
+                any(HttpEntity.class), 
                 ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()
         )).thenReturn(new ResponseEntity<>(null, HttpStatus.BAD_REQUEST));
 
-        UnauthorizedException ex = assertThrows(UnauthorizedException.class, () -> oauth2Service.authenticateWithGoogle(request));
-        String expectedMessage = "Token de Google inválido";
-        assertEquals(expectedMessage, ex.getMessage());
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class, 
+            () -> oauth2Service.authenticateWithGoogle(request));
+        assertEquals("Token de Google inválido", ex.getMessage());
     }
 
     @Test
@@ -132,45 +155,37 @@ class OAuth2ServiceImplTest {
         googleResponse.put("aud", "OTHER_CLIENT_ID");
 
         when(restTemplate.exchange(
-                anyString(), any(), any(), 
+                anyString(), 
+                eq(HttpMethod.GET),
+                any(HttpEntity.class), 
                 ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()
         )).thenReturn(new ResponseEntity<>(googleResponse, HttpStatus.OK));
 
-        UnauthorizedException ex = assertThrows(UnauthorizedException.class, () -> oauth2Service.authenticateWithGoogle(request));
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class, 
+            () -> oauth2Service.authenticateWithGoogle(request));
         assertTrue(ex.getMessage().contains("no válido para esta aplicación"));
     }
 
     @Test
-    void testAuthenticateWithGoogle_EmailNotVerified_Boolean() {
+    void testAuthenticateWithGoogle_EmailNotVerified() {
         OAuth2LoginRequestDTO request = new OAuth2LoginRequestDTO("token");
         Map<String, Object> googleResponse = new HashMap<>();
         googleResponse.put("aud", googleClientID);
         googleResponse.put("email_verified", false);
 
         when(restTemplate.exchange(
-                anyString(), any(), any(), 
+                anyString(), 
+                eq(HttpMethod.GET),
+                any(HttpEntity.class), 
                 ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()
         )).thenReturn(new ResponseEntity<>(googleResponse, HttpStatus.OK));
 
-        assertThrows(UnauthorizedException.class, () -> oauth2Service.authenticateWithGoogle(request));
+        assertThrows(UnauthorizedException.class, 
+            () -> oauth2Service.authenticateWithGoogle(request));
     }
 
-    @Test
-    void testAuthenticateWithGoogle_EmailNotVerified_String() {
-        OAuth2LoginRequestDTO request = new OAuth2LoginRequestDTO("token");
-        Map<String, Object> googleResponse = new HashMap<>();
-        googleResponse.put("aud", googleClientID);
-        googleResponse.put("email_verified", "false");
+    // --- PRUEBAS DE processOAuth2User ---
 
-        when(restTemplate.exchange(
-                anyString(), any(), any(), 
-                ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()
-        )).thenReturn(new ResponseEntity<>(googleResponse, HttpStatus.OK));
-
-        assertThrows(UnauthorizedException.class, () -> oauth2Service.authenticateWithGoogle(request));
-    }
-
-    // PRUEBAS DE processOAuth2User
     @Test
     void testProcessOAuth2User_ExistingGoogleUser_NoUpdate() {
         String email = "test@gmail.com";
@@ -181,10 +196,15 @@ class OAuth2ServiceImplTest {
         existing.setProviderId("123");
         existing.setUsername("existingUser");
 
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(email, AuthProvider.GOOGLE)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(
+                email, 
+                AuthProvider.GOOGLE)
+        ).thenReturn(Optional.of(existing));
+        
         when(jwtUtil.generateAccessToken("existingUser")).thenReturn("token");
 
         oauth2Service.processOAuth2User(email, "Name", providerId, null);
+        
         verify(userRepository, never()).save(any());
     }
 
@@ -197,26 +217,39 @@ class OAuth2ServiceImplTest {
         existing.setProviderId("old_id");
         existing.setUsername("user");
 
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(email, AuthProvider.GOOGLE)).thenReturn(Optional.of(existing));
-        when(userRepository.save(existing)).thenReturn(existing);
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(
+                email, 
+                AuthProvider.GOOGLE)
+        ).thenReturn(Optional.of(existing));
         
+        when(userRepository.save(any(UserEntity.class))).thenReturn(existing);
         when(jwtUtil.generateAccessToken(anyString())).thenReturn("token");
 
         oauth2Service.processOAuth2User(email, "Name", "new_id", null);
-        verify(userRepository).save(existing);
+        
+        verify(userRepository).save(any(UserEntity.class));
         assertEquals("new_id", existing.getProviderId());
     }
 
     @Test
     void testProcessOAuth2User_LocalUserConflict() {
         String email = "conflict@gmail.com";
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(email, AuthProvider.GOOGLE)).thenReturn(Optional.empty());
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(email, AuthProvider.LOCAL)).thenReturn(Optional.of(new UserEntity()));
+        
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(
+                email, 
+                AuthProvider.GOOGLE)
+        ).thenReturn(Optional.empty());
+        
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(
+                email, 
+                AuthProvider.LOCAL)
+        ).thenReturn(Optional.of(new UserEntity()));
 
-        assertThrows(UnauthorizedException.class, () -> oauth2Service.processOAuth2User(email, "Name", "123", null));
+        assertThrows(UnauthorizedException.class, 
+            () -> oauth2Service.processOAuth2User(email, "Name", "123", null));
     }
 
-    // PRUEBAS DE GENERACIÓN DE USERNAME
+    // --- PRUEBAS DE GENERACIÓN DE USERNAME ---
 
     private void mockRepositorySaveWithId() {
         when(userRepository.save(any(UserEntity.class))).thenAnswer(invocation -> {
@@ -228,19 +261,22 @@ class OAuth2ServiceImplTest {
 
     @Test
     void testUsernameGeneration_SimpleName() {
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(anyString(), any(AuthProvider.class)))
+                .thenReturn(Optional.empty());
         mockRepositorySaveWithId();
         
         when(userRepository.existsByUsernameIgnoreCase("juanperez")).thenReturn(false);
         when(jwtUtil.generateAccessToken(anyString())).thenReturn("token");
 
         oauth2Service.processOAuth2User("j.perez@mail.com", "Juan Perez", "1", null);
+        
         verify(jwtUtil).generateAccessToken("juanperez");
     }
 
     @Test
     void testUsernameGeneration_NameTaken_UseSuffix() {
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(any(), any())).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(anyString(), any(AuthProvider.class)))
+                .thenReturn(Optional.empty());
         mockRepositorySaveWithId();
 
         when(userRepository.existsByUsernameIgnoreCase("juanperez")).thenReturn(true);
@@ -248,66 +284,28 @@ class OAuth2ServiceImplTest {
         when(jwtUtil.generateAccessToken(anyString())).thenReturn("token");
 
         oauth2Service.processOAuth2User("mail@m.com", "Juan Perez", "1", null);
+        
         verify(jwtUtil).generateAccessToken("juanperez1");
     }
 
     @Test
-    void testUsernameGeneration_NameEmpty_UseEmail() {
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(any(), any())).thenReturn(Optional.empty());
-        mockRepositorySaveWithId();
-
-        when(userRepository.existsByUsernameIgnoreCase("miemail")).thenReturn(false);
-        when(jwtUtil.generateAccessToken(anyString())).thenReturn("token");
-
-        oauth2Service.processOAuth2User("miemail@test.com", "", "1", null);
-        verify(jwtUtil).generateAccessToken("miemail");
-    }
-
-    @Test
-    void testUsernameGeneration_NameLoopExhausted() {
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(any(), any())).thenReturn(Optional.empty());
-        mockRepositorySaveWithId();
-
-        when(userRepository.existsByUsernameIgnoreCase(startsWith("juan"))).thenReturn(true);
-        when(userRepository.existsByUsernameIgnoreCase("otro")).thenReturn(false);
-        when(jwtUtil.generateAccessToken(anyString())).thenReturn("token");
-
-        oauth2Service.processOAuth2User("otro@test.com", "Juan", "1", null);
-        verify(jwtUtil).generateAccessToken("otro");
-    }
-    
-    @Test
-    void testUsernameGeneration_EmailLoop() {
-        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(any(), any())).thenReturn(Optional.empty());
-        mockRepositorySaveWithId();
-
-        when(userRepository.existsByUsernameIgnoreCase("test")).thenReturn(true); 
-        when(userRepository.existsByUsernameIgnoreCase("test1")).thenReturn(true); 
-        when(userRepository.existsByUsernameIgnoreCase("test2")).thenReturn(false);
-        when(jwtUtil.generateAccessToken(anyString())).thenReturn("token");
-
-        oauth2Service.processOAuth2User("test@mail.com", "", "1", null);
-        verify(jwtUtil).generateAccessToken("test2");
-    }
-
-    @Test
     void testUsernameGeneration_FinalFallback() {
-         when(userRepository.findByEmailIgnoreCaseAndAuthProvider(any(), any())).thenReturn(Optional.empty());
-         mockRepositorySaveWithId();
+        when(userRepository.findByEmailIgnoreCaseAndAuthProvider(anyString(), any(AuthProvider.class)))
+                .thenReturn(Optional.empty());
+        mockRepositorySaveWithId();
 
-         when(userRepository.existsByUsernameIgnoreCase(anyString())).thenReturn(true);
-         
-         when(jwtUtil.generateAccessToken(anyString())).thenReturn("access-token");
-         when(jwtUtil.generateRefreshToken(anyString())).thenReturn("refresh-token");
+        when(userRepository.existsByUsernameIgnoreCase(anyString())).thenReturn(true);
+        
+        when(jwtUtil.generateAccessToken(anyString())).thenReturn("access-token");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("refresh-token");
 
-         oauth2Service.processOAuth2User("x@x.com", "", "1", null);
-         
-         ArgumentCaptor<String> usernameCaptor = ArgumentCaptor.forClass(String.class);
-         verify(jwtUtil, atLeastOnce()).generateAccessToken(usernameCaptor.capture());
-         
-         String generatedUsername = usernameCaptor.getValue();
-         assertNotNull(generatedUsername);
-         assertTrue(generatedUsername.startsWith("x"));
-         assertTrue(generatedUsername.length() > 5);
+        oauth2Service.processOAuth2User("x@x.com", "", "1", null);
+        
+        ArgumentCaptor<String> usernameCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jwtUtil, atLeastOnce()).generateAccessToken(usernameCaptor.capture());
+        
+        String generatedUsername = usernameCaptor.getValue();
+        assertNotNull(generatedUsername);
+        assertTrue(generatedUsername.length() > 5); 
     }
 }

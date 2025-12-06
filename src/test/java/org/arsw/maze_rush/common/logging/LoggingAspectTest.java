@@ -93,7 +93,9 @@ class LoggingAspectTest {
 
         setupAopMocks(true); 
         when(pjp.getArgs()).thenReturn(new Object[] {});
-        when(pjp.proceed()).thenThrow(new IllegalArgumentException("Fail Original"));
+
+        IllegalArgumentException originalException = new IllegalArgumentException("Fail Original");
+        when(pjp.proceed()).thenThrow(originalException);
 
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, () -> aspect.logMethodExecution(pjp));
         
@@ -101,12 +103,19 @@ class LoggingAspectTest {
 
         verify(mockLogger, times(1)).debug(anyString(), any(), any(), any());
 
-        verify(mockLogger, times(1)).error(eq("X Error en {}.{}() después de {}ms: {} - {}"), 
-            eq("DummyService"), eq("testMethod"), anyLong(), eq("IllegalArgumentException"), eq("Fail Original"));
+        verify(mockLogger, times(1)).error(
+            eq("X Error en {}.{}() después de {}ms: {} - {}"), 
+            eq("DummyService"), 
+            eq("testMethod"), 
+            anyLong(), 
+            eq("IllegalArgumentException"), 
+            eq("Fail Original"),
+            eq(originalException) 
+        );
+            
         verify(mockLogger, never()).warn(anyString(), any(Object[].class));
     }
-
-    //  AfterThrowing Advice (logException)
+    
  
     @Test
     void testLogException_ShouldLogErrorWithDetails() {
