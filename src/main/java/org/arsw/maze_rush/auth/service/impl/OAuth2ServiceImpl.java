@@ -27,21 +27,22 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class OAuth2ServiceImpl implements OAuth2Service {
-
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final RestTemplate restTemplate;
     private final String googleClientId;
+    private final OAuth2ServiceImpl self;
 
     public OAuth2ServiceImpl(
             UserRepository userRepository,
             JwtUtil jwtUtil,
-            @Value("${spring.security.oauth2.client.registration.google.client-id:}") String googleClientId) {
-
+            @Value("${spring.security.oauth2.client.registration.google.client-id:}") String googleClientId,
+            OAuth2ServiceImpl self){
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.restTemplate = new RestTemplate();
         this.googleClientId = googleClientId;
+        this.self = self;
     }
 
     @Override
@@ -80,7 +81,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             if (!emailVerified) {
                 throw new UnauthorizedException("El email no está verificado en Google");
             }
-            return processOAuth2User(email, name, providerId, null);
+            return self.processOAuth2User(email, name, providerId, null);
 
         } catch (Exception e) {
             log.error("Error al verificar token de Google", e);

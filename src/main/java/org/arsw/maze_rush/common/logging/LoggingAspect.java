@@ -41,6 +41,7 @@ public class LoggingAspect {
     /**
      * Around advice que envuelve la ejecución de métodos para logging completo
      */
+    @SuppressWarnings("java:S2139") 
     @Around("controllerMethods() || serviceMethods()")
     public Object logMethodExecution(ProceedingJoinPoint joinPoint) throws Throwable {
         Logger logger = LoggerFactory.getLogger(joinPoint.getSignature().getDeclaringType());
@@ -55,28 +56,39 @@ public class LoggingAspect {
         }
 
         long startTime = System.currentTimeMillis();
-        Object result = null;
         
         try {
-            result = joinPoint.proceed();
+            Object result = joinPoint.proceed();
             long duration = System.currentTimeMillis() - startTime;
             
             // Log de salida exitosa
             if (logger.isDebugEnabled()) {
                 logger.debug("← Saliendo de {}.{}() en {}ms", className, methodName, duration);
             } else if (duration > 1000) {
-                // Advertencia si toma más de 1 segundo
                 logger.warn("⚠ {}.{}() tomó {}ms en ejecutarse", className, methodName, duration);
             }
             
             return result;
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             long duration = System.currentTimeMillis() - startTime;
+
             logger.error("X Error en {}.{}() después de {}ms: {} - {}", 
-                className, methodName, duration, e.getClass().getSimpleName(), e.getMessage());
-            // Re-lanzar la excepción original para mantener el flujo de errores correcto
-            throw e;
+                className, methodName, duration, e.getClass().getSimpleName(), e.getMessage(), e);
+
+
+            if (e instanceof RuntimeException re) {
+                throw re;
+            }
+
+            if (e instanceof Error err) {
+                throw err;
+            }
+
+            throw new IllegalStateException(
+                String.format("Error no controlado en %s.%s() tras %dms", className, methodName, duration),
+                e
+            );
         }
     }
 

@@ -1,5 +1,4 @@
 name: Build and Test JAR app
-
 on:
   push:
     branches:
@@ -27,7 +26,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: build
-    
     services:
       postgres:
         image: postgres:15
@@ -51,13 +49,24 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Compile test classes
-        run: mvn test-compile
-      - name: Run tests
-        run: mvn test
+      
+      - name: Run tests with Coverage
+        run: mvn test verify
         env:
           DATABASE_URL: jdbc:postgresql://localhost:5432/maze_rush
           DATABASE_USERNAME: admin
           DATABASE_PASSWORD: admin123
-      - name: Package application
-        run: mvn package -DskipTests
+      
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/site/jacoco/jacoco.xml
+
+  sonar-quality-gate:
+    needs: test 
+    uses: ./.github/workflows/sonar-scan.yml
+    with:
+      project_key: "la-ley-del-corazon_maze-rush" 
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
