@@ -1,6 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy JAR app to Azure Web App - themaze
 
 on:
@@ -11,40 +8,66 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest 
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: maze_rush
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: admin123
+        options: >-
+          --health-cmd="pg_isready -U admin"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     permissions:
-      contents: read #This is required for actions/checkout
-
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
-      DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
-
+      contents: read
+    
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Java version
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'microsoft'
+          distribution: 'temurin' 
 
-      - name: Build with Maven
-        run: mvn clean install
-
-      - name: Upload artifact for deployment job
+      - name: Build and Test with Coverage
+        run: mvn clean verify
+        env:
+          DATABASE_URL: jdbc:postgresql://localhost:5432/maze_rush
+          DATABASE_USERNAME: admin
+          DATABASE_PASSWORD: admin123
+        
+      - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:
           name: java-app
           path: '${{ github.workspace }}/target/*.jar'
+      
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/site/jacoco/jacoco.xml
+
+  # INSPECCIÓN DE CALIDAD
+  quality-check:
+    needs: build
+    uses: ./.github/workflows/sonar-scan.yml
+    with:
+      project_key: "Maze-Rush-Backend"
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   deploy:
     runs-on: windows-latest
-    needs: build
+    needs: [build, quality-check] 
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
-
+      id-token: write
+      contents: read
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
@@ -54,9 +77,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_2AAD05919C0F4D589BC944A712B3ADB2 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_6743FFE4972A4BCBA475A2333BDE542C }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_44A9EE116FF744619CE4CD12469A2FE1 }}
+          client-id: ${{secrets.AZUREAPPSERVICE_CLIENTID_2AAD05919C0F4D589BC944A712B3ADB2}}
+          tenant-id: ${{secrets.AZUREAPPSERVICE_TENANTID_6743FFE4972A4BCBA475A2333BDE542C}}
+          subscription-id: ${{secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_44A9EE116FF744619CE4CD12469A2FE1}}
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
@@ -65,4 +88,3 @@ jobs:
           app-name: 'themaze'
           slot-name: 'Production'
           package: '*.jar'
-          
